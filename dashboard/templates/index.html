@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Load Balancer Monitor</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
+</head>
+
+<body>
+
+    <!-- =====================================================
+         APPLICATION
+    ====================================================== -->
+
+    <div class="app">
+
+        <!-- =================================================
+             TOP BAR
+        ================================================== -->
+
+        <header class="topbar">
+
+            <div class="brand">
+
+                <div class="brand-mark">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+
+                <div class="brand-text">
+                    <h1>Load Monitor</h1>
+                    <p>Dynamic Load Balancer</p>
+                </div>
+
+            </div>
+
+
+            <div class="topbar-right">
+
+                <div class="instance">
+                    <span class="instance-dot"></span>
+                    <span>lb-01</span>
+                    <span class="instance-port">:8080</span>
+                </div>
+
+                <div class="live-status">
+                    <span class="live-dot"></span>
+                    <span>LIVE</span>
+                </div>
+
+                <div class="algorithm-chip">
+                    <span class="chip-label">ROUTING</span>
+                    <span id="algorithm">Least Connections</span>
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <!-- =================================================
+             MAIN CONTENT
+        ================================================== -->
+
+        <main class="main-content">
+
+
+            <!-- =============================================
+                 SYSTEM VERDICT
+            ============================================== -->
+
+            <section
+                class="verdict"
+                id="verdict"
+            >
+
+                <div class="verdict-indicator"></div>
+
+                <div class="verdict-content">
+
+                    <div
+                        class="verdict-title"
+                        id="verdict-title"
+                    >
+                        Checking system...
+                    </div>
+
+                    <div
+                        class="verdict-subtitle"
+                        id="verdict-subtitle"
+                    >
+                        Connecting to load balancer
+                    </div>
+
+                </div>
+
+                <div class="last-updated">
+                    <span>Updated</span>
+                    <strong id="last-updated">--</strong>
+                </div>
+
+            </section>
+
+
+            <!-- =============================================
+                 KPI STRIP
+            ============================================== -->
+
+            <section class="kpi-grid">
+
+
+                <!-- Requests -->
+
+                <div class="kpi">
+
+                    <div class="kpi-label">
+                        REQUESTS
+                    </div>
+
+                    <div
+                        class="kpi-value"
+                        id="total-requests"
+                    >
+                        0
+                    </div>
+
+                    <div class="kpi-description">
+                        total processed
+                    </div>
+
+                </div>
+
+
+                <!-- Active Connections -->
+
+                <div class="kpi">
+
+                    <div class="kpi-label">
+                        ACTIVE CONNECTIONS
+                    </div>
+
+                    <div
+                        class="kpi-value"
+                        id="active-connections"
+                    >
+                        0
+                    </div>
+
+                    <div class="kpi-description">
+                        currently active
+                    </div>
+
+                </div>
+
+
+                <!-- Errors -->
+
+                <div class="kpi">
+
+                    <div class="kpi-label">
+                        ERRORS
+                    </div>
+
+                    <div
+                        class="kpi-value"
+                        id="total-errors"
+                    >
+                        0
+                    </div>
+
+                    <div class="kpi-description">
+                        backend failures
+                    </div>
+
+                </div>
+
+
+                <!-- Average Latency -->
+
+                <div class="kpi">
+
+                    <div class="kpi-label">
+                        AVG LATENCY
+                    </div>
+
+                    <div
+                        class="kpi-value"
+                        id="avg-latency"
+                    >
+                        0 ms
+                    </div>
+
+                    <div class="kpi-description">
+                        average response
+                    </div>
+
+                </div>
+
+
+                <!-- Healthy Backends -->
+
+                <div class="kpi">
+
+                    <div class="kpi-label">
+                        HEALTHY
+                    </div>
+
+                    <div
+                        class="kpi-value healthy-value"
+                        id="healthy-count"
+                    >
+                        0 / 0
+                    </div>
+
+                    <div class="kpi-description">
+                        backends online
+                    </div>
+
+                </div>
+
+
+            </section>
+
+
+            <!-- =============================================
+                 MAIN GRID
+            ============================================== -->
+
+            <section class="dashboard-grid">
+
+
+                <!-- =========================================
+                     TOPOLOGY
+                ========================================== -->
+
+                <div class="panel topology-panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <div class="panel-eyebrow">
+                                INFRASTRUCTURE
+                            </div>
+
+                            <h2>Traffic Topology</h2>
+
+                        </div>
+
+                        <div class="panel-live">
+                            <span></span>
+                            LIVE
+                        </div>
+
+                    </div>
+
+
+                    <div class="topology">
+
+                        <!-- Ingress -->
+
+                        <div class="ingress">
+
+                            <div class="traffic-icon">
+                                ↓
+                            </div>
+
+                            <div class="node-label">
+                                INGRESS
+                            </div>
+
+                            <div
+                                class="ingress-value"
+                                id="ingress-value"
+                            >
+                                —
+                            </div>
+
+                            <div class="node-subtitle">
+                                incoming traffic
+                            </div>
+
+                        </div>
+
+
+                        <!-- Connection -->
+
+                        <div class="flow-line ingress-line">
+                            <span></span>
+                        </div>
+
+
+                        <!-- Load Balancer -->
+
+                        <div class="load-balancer-node">
+
+                            <div class="lb-node-top">
+
+                                <div class="status-dot"></div>
+
+                                <span>ACTIVE</span>
+
+                            </div>
+
+                            <div class="lb-icon">
+                                ⇄
+                            </div>
+
+                            <div class="lb-title">
+                                LOAD BALANCER
+                            </div>
+
+                            <div class="lb-port">
+                                127.0.0.1:8080
+                            </div>
+
+                            <div
+                                class="lb-algorithm"
+                                id="topology-algorithm"
+                            >
+                                Least Connections
+                            </div>
+
+                        </div>
+
+
+                        <!-- Backend Connections -->
+
+                        <div class="backend-flows">
+
+                            <div class="backend-flow">
+                                <div class="flow-line">
+                                    <span></span>
+                                </div>
+                            </div>
+
+                            <div class="backend-flow">
+                                <div class="flow-line">
+                                    <span></span>
+                                </div>
+                            </div>
+
+                            <div class="backend-flow">
+                                <div class="flow-line">
+                                    <span></span>
+                                </div>
+                            </div>
+
+                        </div>
+
+
+                        <!-- Backend Nodes -->
+
+                        <div class="backend-nodes">
+
+
+                            <!-- Backend 9001 -->
+
+                            <div
+                                class="backend-node"
+                                id="node-9001"
+                            >
+
+                                <div class="backend-node-status">
+                                    <span class="status-dot"></span>
+                                    <span class="status-text">
+                                        --
+                                    </span>
+                                </div>
+
+                                <div class="backend-node-name">
+                                    Backend 01
+                                </div>
+
+                                <div class="backend-node-port">
+                                    :9001
+                                </div>
+
+                                <div class="backend-node-stats">
+
+                                    <div>
+                                        <span>REQUESTS</span>
+                                        <strong id="node-requests-9001">
+                                            0
+                                        </strong>
+                                    </div>
+
+                                    <div>
+                                        <span>ACTIVE</span>
+                                        <strong id="node-active-9001">
+                                            0
+                                        </strong>
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- Backend 9002 -->
+
+                            <div
+                                class="backend-node"
+                                id="node-9002"
+                            >
+
+                                <div class="backend-node-status">
+                                    <span class="status-dot"></span>
+                                    <span class="status-text">
+                                        --
+                                    </span>
+                                </div>
+
+                                <div class="backend-node-name">
+                                    Backend 02
+                                </div>
+
+                                <div class="backend-node-port">
+                                    :9002
+                                </div>
+
+                                <div class="backend-node-stats">
+
+                                    <div>
+                                        <span>REQUESTS</span>
+                                        <strong id="node-requests-9002">
+                                            0
+                                        </strong>
+                                    </div>
+
+                                    <div>
+                                        <span>ACTIVE</span>
+                                        <strong id="node-active-9002">
+                                            0
+                                        </strong>
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- Backend 9003 -->
+
+                            <div
+                                class="backend-node"
+                                id="node-9003"
+                            >
+
+                                <div class="backend-node-status">
+                                    <span class="status-dot"></span>
+                                    <span class="status-text">
+                                        --
+                                    </span>
+                                </div>
+
+                                <div class="backend-node-name">
+                                    Backend 03
+                                </div>
+
+                                <div class="backend-node-port">
+                                    :9003
+                                </div>
+
+                                <div class="backend-node-stats">
+
+                                    <div>
+                                        <span>REQUESTS</span>
+                                        <strong id="node-requests-9003">
+                                            0
+                                        </strong>
+                                    </div>
+
+                                    <div>
+                                        <span>ACTIVE</span>
+                                        <strong id="node-active-9003">
+                                            0
+                                        </strong>
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =========================================
+                     ROUTING PANEL
+                ========================================== -->
+
+                <div class="panel routing-panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <div class="panel-eyebrow">
+                                POLICY
+                            </div>
+
+                            <h2>Routing</h2>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="routing-content">
+
+                        <div class="routing-icon">
+                            ⇄
+                        </div>
+
+                        <div class="routing-name">
+                            <span>Active algorithm</span>
+
+                            <strong id="routing-algorithm">
+                                Least Connections
+                            </strong>
+                        </div>
+
+                    </div>
+
+
+                    <div class="routing-divider"></div>
+
+
+                    <div class="routing-backends">
+
+                        <div class="routing-backend">
+
+                            <div>
+                                <span class="mini-dot"></span>
+                                Backend 01
+                            </div>
+
+                            <strong id="routing-9001">
+                                0
+                            </strong>
+
+                        </div>
+
+
+                        <div class="routing-backend">
+
+                            <div>
+                                <span class="mini-dot"></span>
+                                Backend 02
+                            </div>
+
+                            <strong id="routing-9002">
+                                0
+                            </strong>
+
+                        </div>
+
+
+                        <div class="routing-backend">
+
+                            <div>
+                                <span class="mini-dot"></span>
+                                Backend 03
+                            </div>
+
+                            <strong id="routing-9003">
+                                0
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+            </section>
+
+
+            <!-- =============================================
+                 BACKEND TABLE
+            ============================================== -->
+
+            <section class="panel backend-panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <div class="panel-eyebrow">
+                            SERVERS
+                        </div>
+
+                        <h2>Backend Health</h2>
+
+                    </div>
+
+                    <div
+                        class="backend-count"
+                        id="backend-count"
+                    >
+                        0 servers
+                    </div>
+
+                </div>
+
+
+                <div class="table-wrapper">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+
+                                <th>STATUS</th>
+                                <th>BACKEND</th>
+                                <th>PORT</th>
+                                <th>REQUESTS</th>
+                                <th>ACTIVE</th>
+                                <th>ERRORS</th>
+                                <th>AVG RESPONSE</th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody id="backend-table">
+
+                            <tr>
+
+                                <td colspan="7">
+
+                                    <div class="table-loading">
+                                        Loading backend data...
+                                    </div>
+
+                                </td>
+
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </section>
+
+
+        </main>
+
+
+        <!-- =================================================
+             FOOTER
+        ================================================== -->
+
+        <footer class="footer">
+
+            <div>
+                Dynamic Load Balancer
+            </div>
+
+            <div class="footer-right">
+
+                <span>
+                    Dashboard :5050
+                </span>
+
+                <span class="footer-separator">
+                    •
+                </span>
+
+                <span>
+                    Load Balancer :8080
+                </span>
+
+                <span class="footer-separator">
+                    •
+                </span>
+
+                <span id="poll-status">
+                    Polling
+                </span>
+
+            </div>
+
+        </footer>
+
+    </div>
+
+
+    <script
+        src="{{ url_for('static', filename='js/app.js') }}"
+    ></script>
+
+</body>
+
+</html>
