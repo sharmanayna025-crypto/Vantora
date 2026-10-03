@@ -1,5 +1,6 @@
 /* =========================================================
-   LOAD BALANCER MONITOR
+   VANTORA
+   Dynamic Load Balancer Monitor
    Dashboard JavaScript
    ========================================================= */
 
@@ -13,6 +14,7 @@ let lastStats = null;
    ========================================================= */
 
 function formatNumber(value) {
+
     if (value === undefined || value === null) {
         return "0";
     }
@@ -22,6 +24,7 @@ function formatNumber(value) {
 
 
 function formatLatency(value) {
+
     if (value === undefined || value === null) {
         return "0.000s";
     }
@@ -31,6 +34,7 @@ function formatLatency(value) {
 
 
 function getBackend(port) {
+
     if (!lastStats || !lastStats.backends) {
         return null;
     }
@@ -57,6 +61,7 @@ function updateKPIs(stats) {
     let totalResponseTime = 0;
     let responseTimeRequests = 0;
 
+
     backends.forEach(backend => {
 
         totalRequests += Number(
@@ -71,9 +76,11 @@ function updateKPIs(stats) {
             backend.errors || 0
         );
 
+
         if (backend.status === "UP") {
             healthyCount++;
         }
+
 
         const requests = Number(
             backend.total_requests || 0
@@ -83,8 +90,11 @@ function updateKPIs(stats) {
             backend.avg_response_time || 0
         );
 
+
         totalResponseTime += avgTime * requests;
+
         responseTimeRequests += requests;
+
     });
 
 
@@ -138,15 +148,36 @@ function updateVerdict(stats) {
     );
 
 
-    const verdict = document.getElementById("verdict");
-    const title = document.getElementById("verdict-title");
-    const subtitle = document.getElementById("verdict-subtitle");
-    const icon = document.querySelector(".verdict-icon");
+    const verdict =
+        document.getElementById("verdict");
 
+    const title =
+        document.getElementById("verdict-title");
+
+    const subtitle =
+        document.getElementById("verdict-subtitle");
+
+    const icon =
+        document.querySelector(".verdict-icon");
+
+
+    /* -----------------------------------------------------
+       Safety checks
+       ----------------------------------------------------- */
+
+    if (!verdict || !title || !subtitle) {
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       NO BACKEND DATA
+       ----------------------------------------------------- */
 
     if (backends.length === 0) {
 
-        title.textContent = "No backend data";
+        title.textContent =
+            "No backend data";
 
         subtitle.textContent =
             "The load balancer returned no backend information.";
@@ -176,11 +207,15 @@ function updateVerdict(stats) {
             `${healthy.length} of ${backends.length} backends healthy`;
 
 
-        icon.style.background =
-            "rgba(61, 214, 140, 0.12)";
+        /* Icon may not exist in current HTML */
+        if (icon) {
 
-        icon.style.color =
-            "#3DD68C";
+            icon.style.background =
+                "rgba(61, 214, 140, 0.12)";
+
+            icon.style.color =
+                "#3DD68C";
+        }
 
         return;
     }
@@ -207,11 +242,15 @@ function updateVerdict(stats) {
             `${healthy.length} of ${backends.length} backends healthy · ${unhealthy.length} unavailable`;
 
 
-        icon.style.background =
-            "rgba(245, 181, 68, 0.12)";
+        /* Icon may not exist in current HTML */
+        if (icon) {
 
-        icon.style.color =
-            "#F5B544";
+            icon.style.background =
+                "rgba(245, 181, 68, 0.12)";
+
+            icon.style.color =
+                "#F5B544";
+        }
 
         return;
     }
@@ -236,11 +275,15 @@ function updateVerdict(stats) {
         "Traffic cannot currently be forwarded.";
 
 
-    icon.style.background =
-        "rgba(242, 85, 90, 0.12)";
+    /* Icon may not exist in current HTML */
+    if (icon) {
 
-    icon.style.color =
-        "#F2555A";
+        icon.style.background =
+            "rgba(242, 85, 90, 0.12)";
+
+        icon.style.color =
+            "#F2555A";
+    }
 }
 
 
@@ -274,18 +317,27 @@ function updateGlobalStatus(stats) {
     }
 
 
-    if (healthy === backends.length && backends.length > 0) {
+    if (
+        healthy === backends.length &&
+        backends.length > 0
+    ) {
 
-        statusText.textContent = "Operational";
+        statusText.textContent =
+            "Operational";
+
 
         statusText.parentElement.style.background =
             "rgba(61, 214, 140, 0.12)";
 
+
         statusText.parentElement.style.color =
             "#3DD68C";
 
-        statusDot.style.background =
-            "#3DD68C";
+
+        if (statusDot) {
+            statusDot.style.background =
+                "#3DD68C";
+        }
 
         return;
     }
@@ -293,31 +345,43 @@ function updateGlobalStatus(stats) {
 
     if (healthy > 0) {
 
-        statusText.textContent = "Degraded";
+        statusText.textContent =
+            "Degraded";
+
 
         statusText.parentElement.style.background =
             "rgba(245, 181, 68, 0.12)";
 
+
         statusText.parentElement.style.color =
             "#F5B544";
 
-        statusDot.style.background =
-            "#F5B544";
+
+        if (statusDot) {
+            statusDot.style.background =
+                "#F5B544";
+        }
 
         return;
     }
 
 
-    statusText.textContent = "Critical";
+    statusText.textContent =
+        "Critical";
+
 
     statusText.parentElement.style.background =
         "rgba(242, 85, 90, 0.12)";
 
+
     statusText.parentElement.style.color =
         "#F2555A";
 
-    statusDot.style.background =
-        "#F2555A";
+
+    if (statusDot) {
+        statusDot.style.background =
+            "#F2555A";
+    }
 }
 
 
@@ -332,20 +396,28 @@ function updateRoutingAlgorithm(stats) {
 
 
     const routingElement =
-        document.getElementById("routing-algorithm");
+        document.getElementById(
+            "routing-algorithm"
+        );
 
 
     if (routingElement) {
-        routingElement.textContent = algorithm;
+
+        routingElement.textContent =
+            algorithm;
     }
 
 
     const routingChip =
-        document.querySelector(".routing-chip strong");
+        document.querySelector(
+            ".routing-chip strong"
+        );
 
 
     if (routingChip) {
-        routingChip.textContent = algorithm;
+
+        routingChip.textContent =
+            algorithm;
     }
 }
 
@@ -357,7 +429,9 @@ function updateRoutingAlgorithm(stats) {
 function updateTimestamp() {
 
     const element =
-        document.getElementById("last-updated");
+        document.getElementById(
+            "last-updated"
+        );
 
 
     if (!element) {
@@ -383,7 +457,9 @@ function updateTimestamp() {
 
 function updateTopologyNode(port) {
 
-    const backend = getBackend(port);
+    const backend =
+        getBackend(port);
+
 
     if (!backend) {
         return;
@@ -410,11 +486,15 @@ function updateTopologyNode(port) {
        ----------------------------------------------------- */
 
     const statusElement =
-        node.querySelector(".node-status");
+        node.querySelector(
+            ".node-status"
+        );
 
 
     const statusDot =
-        node.querySelector(".node-status-dot");
+        node.querySelector(
+            ".node-status-dot"
+        );
 
 
     if (statusElement) {
@@ -422,20 +502,20 @@ function updateTopologyNode(port) {
         statusElement.textContent =
             status ? "UP" : "DOWN";
 
-        if (!status) {
-            statusElement.style.color =
-                "#F2555A";
-        } else {
-            statusElement.style.color =
-                "#3DD68C";
-        }
+
+        statusElement.style.color =
+            status
+                ? "#3DD68C"
+                : "#F2555A";
     }
 
 
     if (statusDot) {
 
         statusDot.style.background =
-            status ? "#3DD68C" : "#F2555A";
+            status
+                ? "#3DD68C"
+                : "#F2555A";
     }
 
 
@@ -482,21 +562,25 @@ function updateTopologyNode(port) {
        ----------------------------------------------------- */
 
     const card =
-        node.querySelector(".node-card");
+        node.querySelector(
+            ".node-card"
+        );
 
 
     if (card) {
 
         if (status) {
 
-            card.style.opacity = "1";
+            card.style.opacity =
+                "1";
 
             card.style.borderColor =
                 "var(--border)";
 
         } else {
 
-            card.style.opacity = "0.72";
+            card.style.opacity =
+                "0.72";
 
             card.style.borderColor =
                 "rgba(242, 85, 90, 0.35)";
@@ -516,17 +600,24 @@ function updateTopology(stats) {
     updateTopologyNode(9003);
 
 
-    const backends = stats.backends || [];
+    const backends =
+        stats.backends || [];
+
 
     const totalRequests =
         backends.reduce(
             (sum, backend) =>
-                sum + Number(
+                sum +
+                Number(
                     backend.total_requests || 0
                 ),
             0
         );
 
+
+    /* -----------------------------------------------------
+       Update routing request counts
+       ----------------------------------------------------- */
 
     backends.forEach(backend => {
 
@@ -558,25 +649,24 @@ function updateTopology(stats) {
         );
 
 
-    connections.forEach(
-        connection => {
+    connections.forEach(connection => {
 
-            connection.classList.remove(
-                "inactive"
-            );
-        }
-    );
+        connection.classList.remove(
+            "inactive"
+        );
+
+    });
 
 
     if (totalRequests === 0) {
 
-        connections.forEach(
-            connection => {
-                connection.classList.add(
-                    "inactive"
-                );
-            }
-        );
+        connections.forEach(connection => {
+
+            connection.classList.add(
+                "inactive"
+            );
+
+        });
     }
 }
 
@@ -585,7 +675,10 @@ function updateTopology(stats) {
    CREATE BACKEND TABLE ROW
    ========================================================= */
 
-function createBackendRow(backend) {
+function createBackendRow(
+    backend,
+    totalRequests
+) {
 
     const row =
         document.createElement("tr");
@@ -595,7 +688,7 @@ function createBackendRow(backend) {
         backend.status === "UP";
 
 
-    const totalRequests =
+    const backendRequests =
         Number(
             backend.total_requests || 0
         );
@@ -613,13 +706,17 @@ function createBackendRow(backend) {
         );
 
 
-    let errorRate = 0;
+    /* -----------------------------------------------------
+       REAL TRAFFIC SHARE
+       ----------------------------------------------------- */
+
+    let trafficShare = 0;
 
 
     if (totalRequests > 0) {
 
-        errorRate =
-            (totalErrors / totalRequests) * 100;
+        trafficShare =
+            (backendRequests / totalRequests) * 100;
     }
 
 
@@ -665,24 +762,32 @@ function createBackendRow(backend) {
 
 
         <td class="mono">
-            ${formatNumber(totalRequests)}
+
+            ${formatNumber(backendRequests)}
+
         </td>
 
 
         <td class="mono">
+
             ${formatNumber(
                 backend.active_connections || 0
             )}
+
         </td>
 
 
         <td class="mono">
+
             ${formatNumber(totalErrors)}
+
         </td>
 
 
         <td class="mono">
+
             ${formatLatency(avgLatency)}
+
         </td>
 
 
@@ -694,13 +799,15 @@ function createBackendRow(backend) {
 
                     <div
                         class="traffic-bar-fill"
-                        style="width: ${Math.min(errorRate * 10, 100)}%">
+                        style="width: ${trafficShare}%">
                     </div>
 
                 </div>
 
                 <span class="mono">
-                    ${errorRate.toFixed(1)}%
+
+                    ${trafficShare.toFixed(1)}%
+
                 </span>
 
             </div>
@@ -732,9 +839,13 @@ function createBackendRow(backend) {
    CREATE PULSE BARS
    ========================================================= */
 
-function createPulseBars(backend, isUp) {
+function createPulseBars(
+    backend,
+    isUp
+) {
 
     const bars = [];
+
 
     const errorCount =
         Number(
@@ -744,19 +855,22 @@ function createPulseBars(backend, isUp) {
 
     for (let i = 0; i < 12; i++) {
 
-        let className = "pulse-bar";
+        let className =
+            "pulse-bar";
 
 
         if (!isUp) {
 
-            className += " error";
+            className +=
+                " error";
 
         } else if (
             errorCount > 0 &&
             i >= 10
         ) {
 
-            className += " warning";
+            className +=
+                " warning";
         }
 
 
@@ -773,6 +887,9 @@ function createPulseBars(backend, isUp) {
 /* =========================================================
    UPDATE BACKEND TABLE
    ========================================================= */
+/* =========================================================
+   UPDATE BACKEND TABLE
+   ========================================================= */
 
 function updateBackendTable(stats) {
 
@@ -782,26 +899,75 @@ function updateBackendTable(stats) {
         );
 
 
-    if (!table) {
-        return;
-    }
-
-
-    table.innerHTML = "";
+    const backendCount =
+        document.getElementById(
+            "backend-count"
+        );
 
 
     const backends =
         stats.backends || [];
 
 
-    backends.forEach(
-        backend => {
+    /* -----------------------------------------------------
+       UPDATE SERVER COUNT
+       ----------------------------------------------------- */
 
-            table.appendChild(
-                createBackendRow(backend)
-            );
-        }
-    );
+    if (backendCount) {
+
+        const count =
+            backends.length;
+
+        backendCount.textContent =
+            `${count} ${count === 1 ? "server" : "servers"}`;
+    }
+
+
+    /* -----------------------------------------------------
+       STOP IF TABLE DOES NOT EXIST
+       ----------------------------------------------------- */
+
+    if (!table) {
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       CLEAR EXISTING TABLE
+       ----------------------------------------------------- */
+
+    table.innerHTML = "";
+
+
+    /* -----------------------------------------------------
+       CALCULATE TOTAL REQUESTS
+       ----------------------------------------------------- */
+
+    const totalRequests =
+        backends.reduce(
+            (sum, backend) =>
+                sum +
+                Number(
+                    backend.total_requests || 0
+                ),
+            0
+        );
+
+
+    /* -----------------------------------------------------
+       CREATE BACKEND ROWS
+       ----------------------------------------------------- */
+
+    backends.forEach(backend => {
+
+        table.appendChild(
+            createBackendRow(
+                backend,
+                totalRequests
+            )
+        );
+
+    });
 }
 
 
@@ -914,6 +1080,7 @@ function showConnectionError() {
         verdict.style.borderColor =
             "rgba(242, 85, 90, 0.22)";
 
+
         verdict.style.background =
             "linear-gradient(90deg, rgba(242, 85, 90, 0.09), rgba(242, 85, 90, 0.025))";
     }
@@ -923,6 +1090,7 @@ function showConnectionError() {
 
         icon.style.background =
             "rgba(242, 85, 90, 0.12)";
+
 
         icon.style.color =
             "#F2555A";
@@ -952,6 +1120,7 @@ function showConnectionError() {
 
         statusContainer.style.background =
             "rgba(242, 85, 90, 0.12)";
+
 
         statusContainer.style.color =
             "#F2555A";
@@ -991,12 +1160,14 @@ async function fetchStats() {
 
         updateDashboard(stats);
 
+
     } catch (error) {
 
         console.error(
             "Unable to fetch load balancer stats:",
             error
         );
+
 
         showConnectionError();
     }
@@ -1028,10 +1199,11 @@ document.addEventListener(
     () => {
 
         console.log(
-            "Load Balancer Dashboard initialized."
+            "Vantora dashboard initialized."
         );
 
 
         startMonitoring();
+
     }
 );

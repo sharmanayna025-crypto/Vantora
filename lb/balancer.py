@@ -160,7 +160,7 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
         # Allow dashboard running on port 5050
         self.send_header(
             "Access-Control-Allow-Origin",
-            "http://localhost:5050"
+            "*"
         )
 
         self.send_header(
