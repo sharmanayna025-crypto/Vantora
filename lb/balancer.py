@@ -21,6 +21,17 @@ LB_PORT = 8080
 
 
 # ==================================================
+# Circuit Breaker Event Logging
+# ==================================================
+
+def log_circuit_change(name, old_state, new_state):
+    print(
+        f"[CIRCUIT] {name}: "
+        f"{old_state} -> {new_state}"
+    )
+
+
+# ==================================================
 # Backend Servers
 # ==================================================
 
@@ -85,7 +96,6 @@ def health_check():
                 if response.status == 200:
 
                     backend.failed_checks = 0
-
                     backend.successful_checks += 1
 
                     # Backend recovery
@@ -105,7 +115,6 @@ def health_check():
                 else:
 
                     backend.successful_checks = 0
-
                     backend.failed_checks += 1
 
                     # Mark DOWN after 3 failures
@@ -123,7 +132,6 @@ def health_check():
             except Exception:
 
                 backend.successful_checks = 0
-
                 backend.failed_checks += 1
 
                 print(
@@ -239,14 +247,34 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
                     "server": f"Backend-{backend.port}",
                     "host": backend.host,
                     "port": backend.port,
+
                     "healthy": backend.healthy,
-                    "active_connections": backend.active_conns,
-                    "total_requests": backend.total_requests,
-                    "errors": backend.errors,
-                    "avg_response_time": round(
-                        backend.avg_response_time,
-                        4
-                    )
+
+                    # Dashboard compatibility
+                    "status": (
+                        "UP"
+                        if backend.healthy
+                        else "DOWN"
+                    ),
+
+                    "active_connections":
+                        backend.active_conns,
+
+                    "total_requests":
+                        backend.total_requests,
+
+                    "errors":
+                        backend.errors,
+
+                    "avg_response_time":
+                        round(
+                            backend.avg_response_time,
+                            4
+                        ),
+
+                    # Circuit breaker information
+                    "circuit":
+                        backend.breaker.snapshot()
                 })
 
             response = {
@@ -293,8 +321,7 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
                 selected_algorithm = algorithm
 
 
-            # Find healthy backends that have not
-            # already been attempted
+            # Only use routable backends
             available_backends = [
 
                 backend
@@ -302,7 +329,7 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
                 for backend in backends
 
                 if (
-                    backend.healthy
+                    backend.routable()
                     and backend not in attempted_backends
                 )
 
@@ -327,12 +354,29 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
 
             attempted_backends.append(backend)
 
+
+            # --------------------------------------------------
+            # Circuit Breaker Permission
+            # --------------------------------------------------
+
+            if not backend.breaker.acquire():
+
+                print(
+                    f"Circuit breaker blocked "
+                    f"Backend-{backend.port}"
+                )
+
+                continue
+
+
+            breaker_recorded = False
+
             start_time = time.time()
 
 
             try:
 
-                # Increase active connection count
+                # Increase active connections
                 backend.active_conns += 1
 
 
@@ -356,11 +400,25 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
 
 
                 # --------------------------------------------------
-                # Successful Request
+                # Circuit Breaker Result
+                # --------------------------------------------------
+
+                if response.status >= 500:
+
+                    backend.breaker.record_failure()
+
+                else:
+
+                    backend.breaker.record_success()
+
+                breaker_recorded = True
+
+
+                # --------------------------------------------------
+                # Statistics
                 # --------------------------------------------------
 
                 elapsed = time.time() - start_time
-
 
                 backend.total_requests += 1
 
@@ -378,7 +436,10 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
                 )
 
 
-                # Send backend response
+                # --------------------------------------------------
+                # Send Response To Client
+                # --------------------------------------------------
+
                 self.send_response(
                     response.status
                 )
@@ -422,8 +483,13 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
             except Exception as error:
 
                 # --------------------------------------------------
-                # Backend Request Failed
+                # Circuit Breaker Failure
                 # --------------------------------------------------
+
+                if not breaker_recorded:
+
+                    backend.breaker.record_failure()
+
 
                 backend.active_conns = max(
                     0,
@@ -456,7 +522,7 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
                     pass
 
 
-                # Try another backend
+                # Continue to another backend
                 continue
 
 
@@ -555,10 +621,6 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
                 )
 
 
-                # --------------------------------------------------
-                # Success Response
-                # --------------------------------------------------
-
                 self.send_json(
                     {
                         "success": True,
@@ -627,12 +689,12 @@ health_thread = threading.Thread(
 
 health_thread.start()
 
+
+# ==================================================
+# Startup Information
+# ==================================================
+
 print("Health Monitor: ACTIVE")
-
-
-# ==================================================
-# Start Load Balancer
-# ==================================================
 
 print("====================================")
 print("       Dynamic Load Balancer")
@@ -645,6 +707,11 @@ print(
 
 print(
     f"Algorithm: {algorithm_name}"
+)
+
+print(
+    "Circuit breaker: ACTIVE "
+    "(3 failures -> OPEN, 10s cooldown)"
 )
 
 print("Backends:")
