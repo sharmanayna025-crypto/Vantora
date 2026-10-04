@@ -592,6 +592,79 @@
 
             </section>
 
+                        <!-- =============================================
+                 LIVE TRAFFIC & LATENCY CHARTS
+            ============================================== -->
+
+            <section class="charts-grid">
+
+                <!-- Traffic Chart -->
+
+                <div class="panel chart-panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <div class="panel-eyebrow">
+                                LIVE METRICS
+                            </div>
+
+                            <h2>Traffic Over Time</h2>
+
+                        </div>
+
+                        <div class="chart-live">
+                            <span class="chart-live-dot"></span>
+                            LIVE
+                        </div>
+
+                    </div>
+
+                    <div class="chart-description">
+                        Requests handled by each backend
+                    </div>
+
+                    <div class="chart-container">
+                        <canvas id="trafficChart"></canvas>
+                    </div>
+
+                </div>
+
+
+                <!-- Latency Chart -->
+
+                <div class="panel chart-panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <div class="panel-eyebrow">
+                                PERFORMANCE
+                            </div>
+
+                            <h2>Response Latency</h2>
+
+                        </div>
+
+                        <div class="chart-unit">
+                            seconds
+                        </div>
+
+                    </div>
+
+                    <div class="chart-description">
+                        Average response time by backend
+                    </div>
+
+                    <div class="chart-container">
+                        <canvas id="latencyChart"></canvas>
+                    </div>
+
+                </div>
+
+            </section>
 
             <!-- =============================================
                  BACKEND TABLE
@@ -629,13 +702,14 @@
 
                             <tr>
 
-                                <th>STATUS</th>
                                 <th>BACKEND</th>
+                                <th>STATUS</th>
                                 <th>PORT</th>
                                 <th>REQUESTS</th>
                                 <th>ACTIVE</th>
                                 <th>ERRORS</th>
                                 <th>AVG RESPONSE</th>
+                                <th>TRAFFIC</th>
 
                             </tr>
 
@@ -645,7 +719,7 @@
 
                             <tr>
 
-                                <td colspan="7">
+                                <td colspan="8">
 
                                     <div class="table-loading">
                                         Loading backend data...
@@ -705,6 +779,8 @@
 
     </div>
 
+
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script
         src="{{ url_for('static', filename='js/app.js') }}"
