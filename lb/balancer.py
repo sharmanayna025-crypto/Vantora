@@ -32,11 +32,24 @@ backends = [
 
 
 # ==================================================
-# Load Balancing Algorithm
+# Load Balancing Algorithms
 # ==================================================
 
-# Current algorithm
-algorithm = LeastConnections()
+algorithms = {
+    "Round Robin": RoundRobin(),
+    "Least Connections": LeastConnections(),
+    "Weighted Round Robin": WeightedRoundRobin()
+}
+
+
+# ==================================================
+# Current Algorithm
+# ==================================================
+
+algorithm_name = "Least Connections"
+algorithm = algorithms[algorithm_name]
+
+algorithm_lock = threading.Lock()
 
 
 # ==================================================
@@ -51,38 +64,28 @@ def health_check():
 
             try:
 
-                # Connect to backend
                 connection = http.client.HTTPConnection(
                     backend.host,
                     backend.port,
                     timeout=2
                 )
 
-                # Send health request
                 connection.request(
                     "GET",
                     "/health"
                 )
 
-                # Get response
                 response = connection.getresponse()
 
-                # Read response body
                 response.read()
 
-                # Close connection
                 connection.close()
 
-                # ----------------------------------
-                # Health check successful
-                # ----------------------------------
-
+                # Successful health check
                 if response.status == 200:
 
-                    # Reset failure counter
                     backend.failed_checks = 0
 
-                    # Increase success counter
                     backend.successful_checks += 1
 
                     # Backend recovery
@@ -101,17 +104,26 @@ def health_check():
 
                 else:
 
-                    # Unexpected status
                     backend.successful_checks = 0
+
                     backend.failed_checks += 1
+
+                    # Mark DOWN after 3 failures
+                    if (
+                        backend.healthy
+                        and backend.failed_checks >= 3
+                    ):
+
+                        backend.healthy = False
+
+                        print(
+                            f"Backend-{backend.port} is DOWN"
+                        )
 
             except Exception:
 
-                # ----------------------------------
-                # Health check failed
-                # ----------------------------------
-
                 backend.successful_checks = 0
+
                 backend.failed_checks += 1
 
                 print(
@@ -119,8 +131,7 @@ def health_check():
                     f"Backend-{backend.port}"
                 )
 
-                # Mark backend DOWN after
-                # 3 consecutive failures
+                # Mark DOWN after 3 failures
                 if (
                     backend.healthy
                     and backend.failed_checks >= 3
@@ -132,7 +143,6 @@ def health_check():
                         f"Backend-{backend.port} is DOWN"
                     )
 
-        # Check again after 2 seconds
         time.sleep(2)
 
 
@@ -142,9 +152,10 @@ def health_check():
 
 class LoadBalancerHandler(BaseHTTPRequestHandler):
 
-    # --------------------------------------------------
-    # Send JSON response
-    # --------------------------------------------------
+
+    # ==================================================
+    # Send JSON Response
+    # ==================================================
 
     def send_json(self, data, status=200):
 
@@ -157,7 +168,6 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
             "application/json"
         )
 
-        # Allow dashboard running on port 5050
         self.send_header(
             "Access-Control-Allow-Origin",
             "*"
@@ -183,276 +193,417 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
         self.wfile.write(response)
 
 
-    # --------------------------------------------------
+    # ==================================================
+    # OPTIONS Requests
+    # ==================================================
+
+    def do_OPTIONS(self):
+
+        self.send_response(204)
+
+        self.send_header(
+            "Access-Control-Allow-Origin",
+            "*"
+        )
+
+        self.send_header(
+            "Access-Control-Allow-Methods",
+            "GET, POST, OPTIONS"
+        )
+
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Content-Type"
+        )
+
+        self.end_headers()
+
+
+    # ==================================================
     # GET Requests
-    # --------------------------------------------------
+    # ==================================================
 
     def do_GET(self):
 
-        # ==================================================
-        # /stats endpoint
-        # ==================================================
+        # --------------------------------------------------
+        # Statistics Endpoint
+        # --------------------------------------------------
 
         if self.path == "/stats":
 
-            stats = {
-                "algorithm": "Least Connections",
-                "backends": []
-            }
+            stats = []
 
             for backend in backends:
 
-                # Determine backend status
-                if backend.healthy:
-                    status = "UP"
-                else:
-                    status = "DOWN"
-
-                # Add backend statistics
-                stats["backends"].append({
-
+                stats.append({
+                    "server": f"Backend-{backend.port}",
+                    "host": backend.host,
                     "port": backend.port,
-
-                    "status": status,
-
-                    "total_requests":
-                        backend.total_requests,
-
-                    "active_connections":
-                        backend.active_conns,
-
-                    "errors":
-                        backend.errors,
-
-                    "avg_response_time":
-                        round(
-                            backend.avg_response_time,
-                            4
-                        )
+                    "healthy": backend.healthy,
+                    "active_connections": backend.active_conns,
+                    "total_requests": backend.total_requests,
+                    "errors": backend.errors,
+                    "avg_response_time": round(
+                        backend.avg_response_time,
+                        4
+                    )
                 })
 
-            # Send statistics
-            self.send_json(stats)
+            response = {
+                "algorithm": algorithm_name,
+                "backends": stats
+            }
+
+            self.send_json(response)
 
             return
 
 
-        # ==================================================
-        # Select a healthy backend
-        # ==================================================
+        # --------------------------------------------------
+        # Algorithm GET Protection
+        # --------------------------------------------------
 
-        backend = algorithm.pick(backends)
+        if self.path.startswith("/algorithm"):
 
-
-        # ==================================================
-        # No healthy backend
-        # ==================================================
-
-        if backend is None:
-
-            self.send_error(
-                503,
-                "Service Unavailable - "
-                "No healthy backends"
+            self.send_json(
+                {
+                    "success": False,
+                    "message": "Endpoint not found"
+                },
+                status=404
             )
 
             return
 
 
-        # Display selected backend
-        print(
-            f"Request {self.path} "
-            f"→ Backend-{backend.port}"
+        # --------------------------------------------------
+        # Retry / Failover
+        # --------------------------------------------------
+
+        max_attempts = len(backends)
+
+        attempted_backends = []
+
+
+        for attempt in range(max_attempts):
+
+            # Get currently selected algorithm
+            with algorithm_lock:
+
+                selected_algorithm = algorithm
+
+
+            # Find healthy backends that have not
+            # already been attempted
+            available_backends = [
+
+                backend
+
+                for backend in backends
+
+                if (
+                    backend.healthy
+                    and backend not in attempted_backends
+                )
+
+            ]
+
+
+            if not available_backends:
+
+                break
+
+
+            # Select backend
+            backend = selected_algorithm.pick(
+                available_backends
+            )
+
+
+            if backend is None:
+
+                break
+
+
+            attempted_backends.append(backend)
+
+            start_time = time.time()
+
+
+            try:
+
+                # Increase active connection count
+                backend.active_conns += 1
+
+
+                connection = http.client.HTTPConnection(
+                    backend.host,
+                    backend.port,
+                    timeout=10
+                )
+
+
+                # Forward request
+                connection.request(
+                    "GET",
+                    self.path
+                )
+
+
+                response = connection.getresponse()
+
+                response_body = response.read()
+
+
+                # --------------------------------------------------
+                # Successful Request
+                # --------------------------------------------------
+
+                elapsed = time.time() - start_time
+
+
+                backend.total_requests += 1
+
+                backend.total_response_time += elapsed
+
+                backend.avg_response_time = (
+                    backend.total_response_time
+                    / backend.total_requests
+                )
+
+
+                backend.active_conns = max(
+                    0,
+                    backend.active_conns - 1
+                )
+
+
+                # Send backend response
+                self.send_response(
+                    response.status
+                )
+
+
+                for header, value in response.getheaders():
+
+                    if header.lower() != "connection":
+
+                        self.send_header(
+                            header,
+                            value
+                        )
+
+
+                self.send_header(
+                    "X-Served-By",
+                    f"Backend-{backend.port}"
+                )
+
+
+                self.send_header(
+                    "Access-Control-Allow-Origin",
+                    "*"
+                )
+
+
+                self.end_headers()
+
+
+                self.wfile.write(
+                    response_body
+                )
+
+
+                connection.close()
+
+                return
+
+
+            except Exception as error:
+
+                # --------------------------------------------------
+                # Backend Request Failed
+                # --------------------------------------------------
+
+                backend.active_conns = max(
+                    0,
+                    backend.active_conns - 1
+                )
+
+
+                backend.errors += 1
+
+
+                print(
+                    f"Request failed on "
+                    f"Backend-{backend.port}: "
+                    f"{error}"
+                )
+
+
+                print(
+                    f"Failover attempt "
+                    f"{attempt + 1}/{max_attempts}"
+                )
+
+
+                try:
+
+                    connection.close()
+
+                except Exception:
+
+                    pass
+
+
+                # Try another backend
+                continue
+
+
+        # --------------------------------------------------
+        # All Backends Failed
+        # --------------------------------------------------
+
+        self.send_json(
+            {
+                "error":
+                    "All backend servers are unavailable"
+            },
+            status=503
         )
 
 
-        # ==================================================
-        # Forward request
-        # ==================================================
+    # ==================================================
+    # POST Requests
+    # ==================================================
 
-        try:
+    def do_POST(self):
 
-            # Start response-time measurement
-            start_time = time.time()
+        # --------------------------------------------------
+        # Algorithm Endpoint
+        # --------------------------------------------------
 
-            # Increase active connections
-            backend.active_conns += 1
+        if self.path == "/algorithm":
 
-            # Increase total request count
-            backend.total_requests += 1
+            try:
 
-
-            # --------------------------------------------------
-            # Connect to backend
-            # --------------------------------------------------
-
-            connection = http.client.HTTPConnection(
-                backend.host,
-                backend.port,
-                timeout=10
-            )
+                content_length = int(
+                    self.headers.get(
+                        "Content-Length",
+                        0
+                    )
+                )
 
 
-            # --------------------------------------------------
-            # Forward GET request
-            # --------------------------------------------------
-
-            connection.request(
-                "GET",
-                self.path,
-                headers={
-                    "X-Forwarded-For":
-                        self.client_address[0]
-                }
-            )
+                body = self.rfile.read(
+                    content_length
+                )
 
 
-            # --------------------------------------------------
-            # Receive backend response
-            # --------------------------------------------------
-
-            response = connection.getresponse()
-
-            # Read response body
-            body = response.read()
+                data = json.loads(
+                    body.decode("utf-8")
+                )
 
 
-            # --------------------------------------------------
-            # Send response status to client
-            # --------------------------------------------------
-
-            self.send_response(
-                response.status
-            )
+                requested_algorithm = data.get(
+                    "algorithm"
+                )
 
 
-            # --------------------------------------------------
-            # Copy backend headers
-            # --------------------------------------------------
+                # --------------------------------------------------
+                # Validate Algorithm
+                # --------------------------------------------------
 
-            for header, value in response.getheaders():
+                if requested_algorithm not in algorithms:
 
-                # Don't copy these headers
-                if header.lower() not in [
-                    "connection",
-                    "transfer-encoding",
-                    "server",
-                    "date",
-                    "content-length"
-                ]:
-
-                    self.send_header(
-                        header,
-                        value
+                    self.send_json(
+                        {
+                            "success": False,
+                            "message":
+                                "Invalid algorithm",
+                            "available_algorithms":
+                                list(algorithms.keys())
+                        },
+                        status=400
                     )
 
-
-            # --------------------------------------------------
-            # Tell client which backend responded
-            # --------------------------------------------------
-
-            self.send_header(
-                "X-Served-By",
-                f"Backend-{backend.port}"
-            )
+                    return
 
 
-            # Tell client body size
-            self.send_header(
-                "Content-Length",
-                str(len(body))
-            )
+                # --------------------------------------------------
+                # Change Algorithm
+                # --------------------------------------------------
+
+                global algorithm
+                global algorithm_name
 
 
-            # Finish headers
-            self.end_headers()
+                with algorithm_lock:
+
+                    algorithm_name = (
+                        requested_algorithm
+                    )
+
+                    algorithm = algorithms[
+                        requested_algorithm
+                    ]
 
 
-            # --------------------------------------------------
-            # Send response body
-            # --------------------------------------------------
-
-            self.wfile.write(body)
-
-
-            # Close connection
-            connection.close()
+                print(
+                    f"Routing algorithm changed to "
+                    f"{algorithm_name}"
+                )
 
 
-            # ==================================================
-            # Response Time Statistics
-            # ==================================================
+                # --------------------------------------------------
+                # Success Response
+                # --------------------------------------------------
 
-            response_time = (
-                time.time() - start_time
-            )
+                self.send_json(
+                    {
+                        "success": True,
+                        "algorithm":
+                            algorithm_name,
+                        "message":
+                            f"Routing algorithm changed "
+                            f"to {algorithm_name}"
+                    }
+                )
 
-            # Add response time
-            backend.total_response_time += (
-                response_time
-            )
-
-            # Calculate average response time
-            backend.avg_response_time = (
-                backend.total_response_time
-                / backend.total_requests
-            )
+                return
 
 
-            # Display successful response
-            print(
-                f"Response from "
-                f"Backend-{backend.port}"
-            )
+            except Exception as error:
+
+                print(
+                    f"Algorithm change failed: "
+                    f"{error}"
+                )
 
 
-        # ==================================================
-        # Backend Timeout
-        # ==================================================
+                self.send_json(
+                    {
+                        "success": False,
+                        "message":
+                            "Invalid request"
+                    },
+                    status=400
+                )
 
-        except TimeoutError:
-
-            # Count error
-            backend.errors += 1
-
-            print(
-                f"Backend-{backend.port} "
-                f"timed out"
-            )
-
-            self.send_error(
-                504,
-                "Gateway Timeout"
-            )
+                return
 
 
-        # ==================================================
-        # Backend Failure
-        # ==================================================
+        # --------------------------------------------------
+        # Unknown POST Endpoint
+        # --------------------------------------------------
 
-        except Exception as error:
-
-            # Count error
-            backend.errors += 1
-
-            print(
-                f"Backend-{backend.port} "
-                f"failed: {error}"
-            )
-
-            self.send_error(
-                502,
-                "Bad Gateway"
-            )
-
-
-        # ==================================================
-        # Always decrease active connections
-        # ==================================================
-
-        finally:
-
-            backend.active_conns -= 1
+        self.send_json(
+            {
+                "success": False,
+                "message": "Endpoint not found"
+            },
+            status=404
+        )
 
 
 # ==================================================
@@ -492,7 +643,9 @@ print(
     f"{LB_HOST}:{LB_PORT}"
 )
 
-print("Algorithm: Least Connections")
+print(
+    f"Algorithm: {algorithm_name}"
+)
 
 print("Backends:")
 

@@ -2099,3 +2099,90 @@ a {
     }
 
 }
+/* =========================================================
+   VANTORA ALGORITHM SELECTOR
+   ========================================================= */
+
+.algorithm-selector {
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+}
+
+.algorithm-chevron {
+    margin-left: 4px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    transition: transform 0.2s ease;
+}
+
+.algorithm-selector.open .algorithm-chevron {
+    transform: rotate(180deg);
+}
+
+.algorithm-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 1000;
+
+    display: none;
+    min-width: 190px;
+
+    padding: 6px;
+
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+
+    box-shadow:
+        0 14px 35px rgba(0, 0, 0, 0.35),
+        0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+.algorithm-selector.open .algorithm-menu {
+    display: flex;
+    flex-direction: column;
+}
+
+.algorithm-option {
+    width: 100%;
+    padding: 9px 11px;
+
+    border: none;
+    border-radius: 7px;
+
+    background: transparent;
+    color: var(--text-secondary);
+
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+
+    text-align: left;
+    cursor: pointer;
+
+    transition:
+        background 0.15s ease,
+        color 0.15s ease;
+}
+
+.algorithm-option:hover {
+    background: rgba(108, 124, 255, 0.09);
+    color: var(--text-primary);
+}
+
+.algorithm-option.active {
+    background: rgba(108, 124, 255, 0.12);
+    color: var(--accent-indigo);
+}
+
+@media (max-width: 600px) {
+
+    .algorithm-menu {
+        right: auto;
+        left: 0;
+        min-width: 175px;
+    }
+
+}

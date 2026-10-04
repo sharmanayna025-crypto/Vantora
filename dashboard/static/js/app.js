@@ -10,10 +10,13 @@
 const STATS_URL =
     "http://127.0.0.1:8080/stats";
 
+const ALGORITHM_URL =
+    "http://127.0.0.1:8080/algorithm";
 
-// =====================================================
-// EVENT HISTORY
-// =====================================================
+
+/* =========================================================
+   EVENT HISTORY
+   ========================================================= */
 
 const eventHistory = [];
 
@@ -24,9 +27,9 @@ let previousBackendStatus = {};
 let previousAlgorithm = null;
 
 
-// =====================================================
-// LIVE CHART DATA
-// =====================================================
+/* =========================================================
+   LIVE CHART DATA
+   ========================================================= */
 
 let trafficChart = null;
 
@@ -70,9 +73,9 @@ let lastStats = null;
 let previousRequestCounts = {};
 
 
-// =========================================================
-// HELPER FUNCTIONS
-// =========================================================
+/* =========================================================
+   HELPER FUNCTIONS
+   ========================================================= */
 
 function formatNumber(value) {
 
@@ -108,9 +111,9 @@ function getBackend(stats, port) {
 }
 
 
-// =========================================================
-// EVENT HISTORY
-// =========================================================
+/* =========================================================
+   EVENT HISTORY
+   ========================================================= */
 
 function addEvent(
     type,
@@ -152,9 +155,9 @@ function addEvent(
 }
 
 
-// =========================================================
-// EVENT DETECTION
-// =========================================================
+/* =========================================================
+   EVENT DETECTION
+   ========================================================= */
 
 function detectEvents(stats) {
 
@@ -287,9 +290,9 @@ function detectEvents(stats) {
 }
 
 
-// =========================================================
-// RENDER EVENTS
-// =========================================================
+/* =========================================================
+   RENDER EVENTS
+   ========================================================= */
 
 function renderEvents() {
 
@@ -402,9 +405,9 @@ function renderEvents() {
 }
 
 
-// =========================================================
-// KPI SECTION
-// =========================================================
+/* =========================================================
+   KPI SECTION
+   ========================================================= */
 
 function updateKPIs(stats) {
 
@@ -568,9 +571,9 @@ function updateKPIs(stats) {
 }
 
 
-// =========================================================
-// SYSTEM VERDICT
-// =========================================================
+/* =========================================================
+   SYSTEM VERDICT
+   ========================================================= */
 
 function updateVerdict(stats) {
 
@@ -719,9 +722,9 @@ function updateVerdict(stats) {
 }
 
 
-// =========================================================
-// GLOBAL LIVE STATUS
-// =========================================================
+/* =========================================================
+   GLOBAL LIVE STATUS
+   ========================================================= */
 
 function updateGlobalStatus(stats) {
 
@@ -865,9 +868,9 @@ function updateGlobalStatus(stats) {
 }
 
 
-// =========================================================
-// ROUTING ALGORITHM
-// =========================================================
+/* =========================================================
+   ROUTING ALGORITHM
+   ========================================================= */
 
 function updateRoutingAlgorithm(stats) {
 
@@ -875,6 +878,10 @@ function updateRoutingAlgorithm(stats) {
         stats.algorithm ||
         "Unknown";
 
+
+    /*
+       Routing section
+    */
 
     const routingAlgorithm =
         document.getElementById(
@@ -889,6 +896,10 @@ function updateRoutingAlgorithm(stats) {
     }
 
 
+    /*
+       Topology section
+    */
+
     const topologyAlgorithm =
         document.getElementById(
             "topology-algorithm"
@@ -902,23 +913,70 @@ function updateRoutingAlgorithm(stats) {
     }
 
 
-    const topAlgorithm =
+    /*
+       IMPORTANT:
+       Do NOT update the entire #algorithm element.
+
+       The #algorithm element contains:
+       - #algorithm-label
+       - dropdown arrow
+       - #algorithm-menu
+
+       Updating its textContent would delete
+       the entire dropdown menu.
+    */
+
+    const topAlgorithmLabel =
         document.getElementById(
-            "algorithm"
+            "algorithm-label"
         );
 
 
-    if (topAlgorithm) {
+    if (topAlgorithmLabel) {
 
-        topAlgorithm.textContent =
+        topAlgorithmLabel.textContent =
             algorithm;
     }
+
+
+    /*
+       Update active dropdown option
+    */
+
+    const options =
+        document.querySelectorAll(
+            ".algorithm-option"
+        );
+
+
+    options.forEach(
+        option => {
+
+            if (
+                option.dataset.algorithm ===
+                algorithm
+            ) {
+
+                option.classList.add(
+                    "active"
+                );
+
+            } else {
+
+                option.classList.remove(
+                    "active"
+                );
+
+            }
+
+        }
+    );
 }
 
 
-// =========================================================
-// TIMESTAMP
-// =========================================================
+/* =========================================================
+   TIMESTAMP
+   ========================================================= */
 
 function updateTimestamp() {
 
@@ -950,9 +1008,9 @@ function updateTimestamp() {
 }
 
 
-// =========================================================
-// TOPOLOGY NODE
-// =========================================================
+/* =========================================================
+   TOPOLOGY NODE
+   ========================================================= */
 
 function updateTopologyNode(
     stats,
@@ -1101,9 +1159,9 @@ function updateTopologyNode(
 }
 
 
-// =========================================================
-// TOPOLOGY
-// =========================================================
+/* =========================================================
+   TOPOLOGY
+   ========================================================= */
 
 function updateTopology(stats) {
 
@@ -1188,9 +1246,9 @@ function updateTopology(stats) {
 }
 
 
-// =========================================================
-// LIVE TRAFFIC ANIMATION
-// =========================================================
+/* =========================================================
+   LIVE TRAFFIC ANIMATION
+   ========================================================= */
 
 function updateTrafficAnimation(stats) {
 
@@ -1284,9 +1342,9 @@ function updateTrafficAnimation(stats) {
 }
 
 
-// =========================================================
-// PULSE BARS
-// =========================================================
+/* =========================================================
+   PULSE BARS
+   ========================================================= */
 
 function createPulseBars(
     backend,
@@ -1377,9 +1435,9 @@ function createPulseBars(
 }
 
 
-// =========================================================
-// BACKEND TABLE ROW
-// =========================================================
+/* =========================================================
+   BACKEND TABLE ROW
+   ========================================================= */
 
 function createBackendRow(
     backend,
@@ -1665,9 +1723,9 @@ function createBackendRow(
 }
 
 
-// =========================================================
-// BACKEND TABLE
-// =========================================================
+/* =========================================================
+   BACKEND TABLE
+   ========================================================= */
 
 function updateBackendTable(stats) {
 
@@ -1740,9 +1798,9 @@ function updateBackendTable(stats) {
 }
 
 
-// =========================================================
-// FOOTER
-// =========================================================
+/* =========================================================
+   FOOTER
+   ========================================================= */
 
 function updateFooter(stats) {
 
@@ -1763,9 +1821,9 @@ function updateFooter(stats) {
 }
 
 
-// =========================================================
-// UPDATE COMPLETE DASHBOARD
-// =========================================================
+/* =========================================================
+   UPDATE COMPLETE DASHBOARD
+   ========================================================= */
 
 function updateDashboard(stats) {
 
@@ -1784,7 +1842,7 @@ function updateDashboard(stats) {
 
 
     updateCharts(
-        stats.backends
+        stats.backends || []
     );
 
 
@@ -1832,9 +1890,9 @@ function updateDashboard(stats) {
 }
 
 
-// =========================================================
-// CONNECTION ERROR
-// =========================================================
+/* =========================================================
+   CONNECTION ERROR
+   ========================================================= */
 
 function showConnectionError() {
 
@@ -1923,9 +1981,9 @@ function showConnectionError() {
 }
 
 
-// =========================================================
-// FETCH STATISTICS
-// =========================================================
+/* =========================================================
+   FETCH STATISTICS
+   ========================================================= */
 
 async function fetchStats() {
 
@@ -1970,9 +2028,9 @@ async function fetchStats() {
 }
 
 
-// =========================================================
-// MONITORING LOOP
-// =========================================================
+/* =========================================================
+   MONITORING LOOP
+   ========================================================= */
 
 function startMonitoring() {
 
@@ -1986,9 +2044,9 @@ function startMonitoring() {
 }
 
 
-// =========================================================
-// CHART INITIALIZATION
-// =========================================================
+/* =========================================================
+   CHART INITIALIZATION
+   ========================================================= */
 
 function initializeCharts() {
 
@@ -2376,9 +2434,9 @@ function initializeCharts() {
 }
 
 
-// =========================================================
-// UPDATE CHART DATA
-// =========================================================
+/* =========================================================
+   UPDATE CHART DATA
+   ========================================================= */
 
 function updateCharts(backends) {
 
@@ -2446,7 +2504,9 @@ function updateCharts(backends) {
         backend => {
 
             const port =
-                backend.port;
+                Number(
+                    backend.port
+                );
 
 
             if (
@@ -2624,9 +2684,289 @@ function updateCharts(backends) {
 }
 
 
-// =========================================================
-// PAGE INITIALIZATION
-// =========================================================
+/* =========================================================
+   ALGORITHM SELECTOR
+   ========================================================= */
+
+function initializeAlgorithmSelector() {
+
+    const selector =
+        document.getElementById(
+            "algorithm"
+        );
+
+
+    const label =
+        document.getElementById(
+            "algorithm-label"
+        );
+
+
+    const menu =
+        document.getElementById(
+            "algorithm-menu"
+        );
+
+
+    const options =
+        document.querySelectorAll(
+            ".algorithm-option"
+        );
+
+
+    /*
+       Required elements not found
+    */
+
+    if (
+        !selector ||
+        !label ||
+        !menu
+    ) {
+
+        console.warn(
+            "Algorithm selector elements not found."
+        );
+
+
+        return;
+    }
+
+
+    /*
+       ---------------------------------------------
+       Open / close dropdown
+       ---------------------------------------------
+    */
+
+    selector.addEventListener(
+        "click",
+        function (event) {
+
+            /*
+               If clicking an option,
+               let the option handler deal with it.
+            */
+
+            if (
+                event.target.closest(
+                    ".algorithm-option"
+                )
+            ) {
+
+                return;
+            }
+
+
+            event.stopPropagation();
+
+
+            selector.classList.toggle(
+                "open"
+            );
+
+        }
+    );
+
+
+    /*
+       ---------------------------------------------
+       Select algorithm
+       ---------------------------------------------
+    */
+
+    options.forEach(
+        function (option) {
+
+            option.addEventListener(
+                "click",
+                async function (event) {
+
+                    event.preventDefault();
+
+                    event.stopPropagation();
+
+
+                    const selectedAlgorithm =
+                        option.dataset.algorithm;
+
+
+                    /*
+                       Already selected
+                    */
+
+                    if (
+                        selectedAlgorithm ===
+                        label.textContent.trim()
+                    ) {
+
+                        selector.classList.remove(
+                            "open"
+                        );
+
+
+                        return;
+                    }
+
+
+                    try {
+
+                        /*
+                           Prevent double-click
+                        */
+
+                        option.disabled = true;
+
+
+                        /*
+                           Send algorithm change
+                           to load balancer
+                        */
+
+                        const response =
+                            await fetch(
+                                ALGORITHM_URL,
+                                {
+                                    method:
+                                        "POST",
+
+                                    headers: {
+                                        "Content-Type":
+                                            "application/json"
+                                    },
+
+                                    body:
+                                        JSON.stringify({
+                                            algorithm:
+                                                selectedAlgorithm
+                                        })
+                                }
+                            );
+
+
+                        const result =
+                            await response.json();
+
+
+                        /*
+                           Check response
+                        */
+
+                        if (
+                            !response.ok ||
+                            !result.success
+                        ) {
+
+                            throw new Error(
+                                result.message ||
+                                "Failed to change algorithm"
+                            );
+
+                        }
+
+
+                        /*
+                           Update visible label
+                        */
+
+                        label.textContent =
+                            result.algorithm;
+
+
+                        /*
+                           Update active option
+                        */
+
+                        options.forEach(
+                            function (item) {
+
+                                item.classList.remove(
+                                    "active"
+                                );
+
+                            }
+                        );
+
+
+                        option.classList.add(
+                            "active"
+                        );
+
+
+                        /*
+                           Close dropdown
+                        */
+
+                        selector.classList.remove(
+                            "open"
+                        );
+
+
+                        /*
+                           Refresh dashboard
+                           immediately
+                        */
+
+                        await fetchStats();
+
+
+                    } catch (error) {
+
+                        console.error(
+                            "Algorithm change failed:",
+                            error
+                        );
+
+
+                        alert(
+                            "Unable to change routing algorithm."
+                        );
+
+
+                    } finally {
+
+                        option.disabled =
+                            false;
+
+                    }
+
+                }
+            );
+
+        }
+    );
+
+
+    /*
+       ---------------------------------------------
+       Close dropdown when clicking outside
+       ---------------------------------------------
+    */
+
+    document.addEventListener(
+        "click",
+        function (event) {
+
+            if (
+                !selector.contains(
+                    event.target
+                )
+            ) {
+
+                selector.classList.remove(
+                    "open"
+                );
+
+            }
+
+        }
+    );
+}
+
+
+/* =========================================================
+   PAGE INITIALIZATION
+   ========================================================= */
 
 document.addEventListener(
     "DOMContentLoaded",
@@ -2643,14 +2983,21 @@ document.addEventListener(
 
 
         /*
-           Initialize Chart.js first.
+           Initialize charts
         */
 
         initializeCharts();
 
 
         /*
-           Start load balancer monitoring.
+           Initialize algorithm dropdown
+        */
+
+        initializeAlgorithmSelector();
+
+
+        /*
+           Start live monitoring
         */
 
         startMonitoring();

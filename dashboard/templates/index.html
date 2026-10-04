@@ -87,17 +87,50 @@
                 </div>
 
 
-                <div class="algorithm-chip">
+                <div
+    class="algorithm-chip algorithm-selector"
+    id="algorithm"
+    title="Change routing algorithm"
+>
+    <span id="algorithm-label">
+        Least Connections
+    </span>
 
-                    <span class="chip-label">
-                        ROUTING
-                    </span>
+    <span class="algorithm-chevron">
+        ▾
+    </span>
 
-                    <span id="algorithm">
-                        Least Connections
-                    </span>
+    <div
+        class="algorithm-menu"
+        id="algorithm-menu"
+    >
 
-                </div>
+        <button
+            type="button"
+            class="algorithm-option"
+            data-algorithm="Round Robin"
+        >
+            Round Robin
+        </button>
+
+        <button
+            type="button"
+            class="algorithm-option"
+            data-algorithm="Weighted Round Robin"
+        >
+            Weighted Round Robin
+        </button>
+
+        <button
+            type="button"
+            class="algorithm-option"
+            data-algorithm="Least Connections"
+        >
+            Least Connections
+        </button>
+
+    </div>
+</div>
 
             </div>
 
