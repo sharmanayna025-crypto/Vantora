@@ -24,6 +24,8 @@ const MAX_EVENTS = 20;
 
 let previousBackendStatus = {};
 
+let previousCircuitStatus = {};
+
 let previousAlgorithm = null;
 
 
@@ -190,6 +192,14 @@ function detectEvents(stats) {
                 ] =
                     backend.status;
 
+
+                previousCircuitStatus[
+                    backend.port
+                ] =
+                    backend.circuit
+                        ? backend.circuit.state
+                        : "CLOSED";
+
             }
         );
 
@@ -261,6 +271,81 @@ function detectEvents(stats) {
                 port
             ] =
                 currentStatus;
+
+
+            /*
+               ---------------------------------------------
+               Circuit breaker changes
+               ---------------------------------------------
+            */
+
+            const currentCircuit =
+                backend.circuit
+                    ? backend.circuit.state
+                    : "CLOSED";
+
+
+            const oldCircuit =
+                previousCircuitStatus[
+                    port
+                ];
+
+
+            /*
+               Circuit opened
+            */
+
+            if (
+                oldCircuit === "CLOSED" &&
+                currentCircuit === "OPEN"
+            ) {
+
+                addEvent(
+                    "critical",
+                    `Backend-${port} circuit breaker OPEN`
+                );
+            }
+
+
+            /*
+               Circuit entered HALF_OPEN
+            */
+
+            if (
+                oldCircuit === "OPEN" &&
+                currentCircuit === "HALF_OPEN"
+            ) {
+
+                addEvent(
+                    "info",
+                    `Backend-${port} circuit testing recovery`
+                );
+            }
+
+
+            /*
+               Circuit recovered
+            */
+
+            if (
+                (
+                    oldCircuit === "OPEN" ||
+                    oldCircuit === "HALF_OPEN"
+                ) &&
+                currentCircuit === "CLOSED"
+            ) {
+
+                addEvent(
+                    "success",
+                    `Backend-${port} circuit breaker CLOSED`
+                );
+            }
+
+
+            previousCircuitStatus[
+                port
+            ] =
+                currentCircuit;
 
         }
     );
@@ -1436,6 +1521,48 @@ function createPulseBars(
 
 
 /* =========================================================
+   CIRCUIT BREAKER DISPLAY
+   ========================================================= */
+
+function getCircuitState(backend) {
+
+    if (
+        backend &&
+        backend.circuit &&
+        backend.circuit.state
+    ) {
+
+        return backend.circuit.state;
+    }
+
+
+    return "CLOSED";
+}
+
+
+function getCircuitClass(state) {
+
+    if (
+        state === "OPEN"
+    ) {
+
+        return "open";
+    }
+
+
+    if (
+        state === "HALF_OPEN"
+    ) {
+
+        return "half-open";
+    }
+
+
+    return "closed";
+}
+
+
+/* =========================================================
    BACKEND TABLE ROW
    ========================================================= */
 
@@ -1482,6 +1609,18 @@ function createBackendRow(
 
     const isUp =
         backend.status === "UP";
+
+
+    const circuitState =
+        getCircuitState(
+            backend
+        );
+
+
+    const circuitClass =
+        getCircuitClass(
+            circuitState
+        );
 
 
     let trafficShare = 0;
@@ -1552,6 +1691,31 @@ function createBackendRow(
                         ? "UP"
                         : "DOWN"
                 }
+            </span>
+
+        </div>
+
+    `;
+
+
+    /*
+       CIRCUIT
+    */
+
+    const circuitCell =
+        document.createElement(
+            "td"
+        );
+
+
+    circuitCell.innerHTML = `
+
+        <div class="circuit-status ${circuitClass}">
+
+            <span class="circuit-dot"></span>
+
+            <span>
+                ${circuitState}
             </span>
 
         </div>
@@ -1686,6 +1850,11 @@ function createBackendRow(
 
     row.appendChild(
         statusCell
+    );
+
+
+    row.appendChild(
+        circuitCell
     );
 
 
@@ -3004,3 +3173,4 @@ document.addEventListener(
 
     }
 );
+

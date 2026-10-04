@@ -88,49 +88,54 @@
 
 
                 <div
-    class="algorithm-chip algorithm-selector"
-    id="algorithm"
-    title="Change routing algorithm"
->
-    <span id="algorithm-label">
-        Least Connections
-    </span>
+                    class="algorithm-chip algorithm-selector"
+                    id="algorithm"
+                    title="Change routing algorithm"
+                >
 
-    <span class="algorithm-chevron">
-        ▾
-    </span>
+                    <span id="algorithm-label">
+                        Least Connections
+                    </span>
 
-    <div
-        class="algorithm-menu"
-        id="algorithm-menu"
-    >
+                    <span class="algorithm-chevron">
+                        ▾
+                    </span>
 
-        <button
-            type="button"
-            class="algorithm-option"
-            data-algorithm="Round Robin"
-        >
-            Round Robin
-        </button>
 
-        <button
-            type="button"
-            class="algorithm-option"
-            data-algorithm="Weighted Round Robin"
-        >
-            Weighted Round Robin
-        </button>
+                    <div
+                        class="algorithm-menu"
+                        id="algorithm-menu"
+                    >
 
-        <button
-            type="button"
-            class="algorithm-option"
-            data-algorithm="Least Connections"
-        >
-            Least Connections
-        </button>
+                        <button
+                            type="button"
+                            class="algorithm-option"
+                            data-algorithm="Round Robin"
+                        >
+                            Round Robin
+                        </button>
 
-    </div>
-</div>
+
+                        <button
+                            type="button"
+                            class="algorithm-option"
+                            data-algorithm="Weighted Round Robin"
+                        >
+                            Weighted Round Robin
+                        </button>
+
+
+                        <button
+                            type="button"
+                            class="algorithm-option"
+                            data-algorithm="Least Connections"
+                        >
+                            Least Connections
+                        </button>
+
+                    </div>
+
+                </div>
 
             </div>
 
@@ -940,6 +945,10 @@
                                 </th>
 
                                 <th>
+                                    CIRCUIT
+                                </th>
+
+                                <th>
                                     PORT
                                 </th>
 
@@ -973,7 +982,7 @@
 
                             <tr>
 
-                                <td colspan="8">
+                                <td colspan="9">
 
                                     <div class="table-loading">
                                         Loading backend data...
@@ -994,7 +1003,8 @@
 
             </section>
 
-                        <!-- =============================================
+
+            <!-- =============================================
                  EVENTS
             ============================================== -->
 
@@ -1118,3 +1128,4 @@
 </body>
 
 </html>
+
