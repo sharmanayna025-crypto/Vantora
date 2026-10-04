@@ -10,20 +10,39 @@
 const STATS_URL =
     "http://127.0.0.1:8080/stats";
 
+
+// =====================================================
+// EVENT HISTORY
+// =====================================================
+
+const eventHistory = [];
+
+const MAX_EVENTS = 20;
+
+let previousBackendStatus = {};
+
+let previousAlgorithm = null;
+
+
 // =====================================================
 // LIVE CHART DATA
 // =====================================================
 
 let trafficChart = null;
+
 let latencyChart = null;
 
+
 const chartHistory = {
+
     labels: [],
+
     traffic: {
         9001: [],
         9002: [],
         9003: []
     },
+
     latency: {
         9001: [],
         9002: [],
@@ -31,16 +50,29 @@ const chartHistory = {
     }
 };
 
+
+let previousChartRequests = {
+
+    9001: 0,
+    9002: 0,
+    9003: 0
+
+};
+
+
+let previousChartTime = null;
+
 const MAX_CHART_POINTS = 20;
+
 
 let lastStats = null;
 
 let previousRequestCounts = {};
 
 
-/* =========================================================
-   HELPER FUNCTIONS
-   ========================================================= */
+// =========================================================
+// HELPER FUNCTIONS
+// =========================================================
 
 function formatNumber(value) {
 
@@ -76,14 +108,309 @@ function getBackend(stats, port) {
 }
 
 
-/* =========================================================
-   KPI SECTION
-   ========================================================= */
+// =========================================================
+// EVENT HISTORY
+// =========================================================
+
+function addEvent(
+    type,
+    message
+) {
+
+    const now =
+        new Date();
+
+
+    eventHistory.unshift({
+
+        type: type,
+
+        message: message,
+
+        time:
+            now.toLocaleTimeString(
+                [],
+                {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit"
+                }
+            )
+    });
+
+
+    if (
+        eventHistory.length >
+        MAX_EVENTS
+    ) {
+
+        eventHistory.pop();
+    }
+
+
+    renderEvents();
+}
+
+
+// =========================================================
+// EVENT DETECTION
+// =========================================================
+
+function detectEvents(stats) {
+
+    if (
+        !stats ||
+        !stats.backends
+    ) {
+        return;
+    }
+
+
+    /*
+       First dashboard update.
+
+       Store the current state without
+       generating false events.
+    */
+
+    if (
+        Object.keys(
+            previousBackendStatus
+        ).length === 0
+    ) {
+
+        stats.backends.forEach(
+            backend => {
+
+                previousBackendStatus[
+                    backend.port
+                ] =
+                    backend.status;
+
+            }
+        );
+
+
+        previousAlgorithm =
+            stats.algorithm;
+
+
+        return;
+    }
+
+
+    /*
+       ---------------------------------------------
+       Backend status changes
+       ---------------------------------------------
+    */
+
+    stats.backends.forEach(
+        backend => {
+
+            const port =
+                backend.port;
+
+
+            const currentStatus =
+                backend.status;
+
+
+            const oldStatus =
+                previousBackendStatus[
+                    port
+                ];
+
+
+            /*
+               Backend went DOWN
+            */
+
+            if (
+                oldStatus === "UP" &&
+                currentStatus === "DOWN"
+            ) {
+
+                addEvent(
+                    "critical",
+                    `Backend-${port} went DOWN`
+                );
+            }
+
+
+            /*
+               Backend recovered
+            */
+
+            if (
+                oldStatus === "DOWN" &&
+                currentStatus === "UP"
+            ) {
+
+                addEvent(
+                    "success",
+                    `Backend-${port} recovered`
+                );
+            }
+
+
+            previousBackendStatus[
+                port
+            ] =
+                currentStatus;
+
+        }
+    );
+
+
+    /*
+       ---------------------------------------------
+       Routing algorithm change
+       ---------------------------------------------
+    */
+
+    if (
+        previousAlgorithm !== null &&
+        stats.algorithm !==
+            previousAlgorithm
+    ) {
+
+        addEvent(
+            "info",
+            `Routing algorithm changed to ${stats.algorithm}`
+        );
+    }
+
+
+    previousAlgorithm =
+        stats.algorithm;
+}
+
+
+// =========================================================
+// RENDER EVENTS
+// =========================================================
+
+function renderEvents() {
+
+    const eventsList =
+        document.getElementById(
+            "events-list"
+        );
+
+
+    const eventsCount =
+        document.getElementById(
+            "events-count"
+        );
+
+
+    if (!eventsList) {
+        return;
+    }
+
+
+    /*
+       No events
+    */
+
+    if (
+        eventHistory.length === 0
+    ) {
+
+        eventsList.innerHTML = `
+
+            <div class="event-empty">
+
+                <div class="event-empty-icon">
+                    ✓
+                </div>
+
+                <div>
+                    No events recorded
+                </div>
+
+            </div>
+
+        `;
+
+
+        if (eventsCount) {
+
+            eventsCount.textContent =
+                "0 events";
+        }
+
+
+        return;
+    }
+
+
+    /*
+       Render event history
+    */
+
+    eventsList.innerHTML =
+        eventHistory.map(
+            event => {
+
+                return `
+
+                    <div class="event-item">
+
+                        <div
+                            class="event-icon ${event.type}"
+                        >
+                            <span></span>
+                        </div>
+
+
+                        <div class="event-content">
+
+                            <div class="event-message">
+                                ${event.message}
+                            </div>
+
+
+                            <div class="event-time">
+                                ${event.time}
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                `;
+
+            }
+        ).join("");
+
+
+    /*
+       Event counter
+    */
+
+    if (eventsCount) {
+
+        eventsCount.textContent =
+            `${eventHistory.length} ${
+                eventHistory.length === 1
+                    ? "event"
+                    : "events"
+            }`;
+    }
+}
+
+
+// =========================================================
+// KPI SECTION
+// =========================================================
 
 function updateKPIs(stats) {
 
     const backends =
         stats.backends || [];
+
 
     let totalRequests = 0;
 
@@ -104,15 +431,18 @@ function updateKPIs(stats) {
                     backend.total_requests || 0
                 );
 
+
             const active =
                 Number(
                     backend.active_connections || 0
                 );
 
+
             const errors =
                 Number(
                     backend.errors || 0
                 );
+
 
             const responseTime =
                 Number(
@@ -123,8 +453,10 @@ function updateKPIs(stats) {
             totalRequests +=
                 requests;
 
+
             totalActive +=
                 active;
+
 
             totalErrors +=
                 errors;
@@ -133,12 +465,14 @@ function updateKPIs(stats) {
             if (
                 backend.status === "UP"
             ) {
+
                 healthyBackends++;
             }
 
 
             totalResponseTime +=
                 responseTime * requests;
+
         }
     );
 
@@ -146,7 +480,9 @@ function updateKPIs(stats) {
     let averageLatency = 0;
 
 
-    if (totalRequests > 0) {
+    if (
+        totalRequests > 0
+    ) {
 
         averageLatency =
             totalResponseTime /
@@ -163,6 +499,7 @@ function updateKPIs(stats) {
             "total-requests"
         );
 
+
     if (requestsElement) {
 
         requestsElement.textContent =
@@ -176,6 +513,7 @@ function updateKPIs(stats) {
         document.getElementById(
             "active-connections"
         );
+
 
     if (activeElement) {
 
@@ -191,6 +529,7 @@ function updateKPIs(stats) {
             "total-errors"
         );
 
+
     if (errorsElement) {
 
         errorsElement.textContent =
@@ -204,6 +543,7 @@ function updateKPIs(stats) {
         document.getElementById(
             "avg-latency"
         );
+
 
     if (latencyElement) {
 
@@ -219,6 +559,7 @@ function updateKPIs(stats) {
             "healthy-count"
         );
 
+
     if (healthyElement) {
 
         healthyElement.textContent =
@@ -227,9 +568,9 @@ function updateKPIs(stats) {
 }
 
 
-/* =========================================================
-   SYSTEM VERDICT
-   ========================================================= */
+// =========================================================
+// SYSTEM VERDICT
+// =========================================================
 
 function updateVerdict(stats) {
 
@@ -238,10 +579,12 @@ function updateVerdict(stats) {
             "verdict"
         );
 
+
     const title =
         document.getElementById(
             "verdict-title"
         );
+
 
     const subtitle =
         document.getElementById(
@@ -254,6 +597,7 @@ function updateVerdict(stats) {
         !title ||
         !subtitle
     ) {
+
         return;
     }
 
@@ -273,13 +617,17 @@ function updateVerdict(stats) {
         backends.length;
 
 
-    if (total === 0) {
+    if (
+        total === 0
+    ) {
 
         title.textContent =
             "No backend data";
 
+
         subtitle.textContent =
             "Waiting for load balancer statistics";
+
 
         verdict.classList.remove(
             "healthy",
@@ -287,51 +635,65 @@ function updateVerdict(stats) {
             "critical"
         );
 
+
         verdict.classList.add(
             "critical"
         );
+
 
         return;
     }
 
 
-    if (healthy === total) {
+    if (
+        healthy === total
+    ) {
 
         title.textContent =
             "All systems operational";
 
+
         subtitle.textContent =
             `${healthy} of ${total} backends healthy`;
+
 
         verdict.classList.remove(
             "warning",
             "critical"
         );
+
 
         verdict.classList.add(
             "healthy"
         );
 
+
         return;
     }
 
 
-    if (healthy > 0) {
+    if (
+        healthy > 0
+    ) {
 
         title.textContent =
             "Degraded service";
 
+
         subtitle.textContent =
             `${healthy} of ${total} backends healthy`;
+
 
         verdict.classList.remove(
             "healthy",
             "critical"
         );
 
+
         verdict.classList.add(
             "warning"
         );
+
 
         return;
     }
@@ -340,13 +702,16 @@ function updateVerdict(stats) {
     title.textContent =
         "No healthy backends";
 
+
     subtitle.textContent =
         "All backend servers are unavailable";
+
 
     verdict.classList.remove(
         "healthy",
         "warning"
     );
+
 
     verdict.classList.add(
         "critical"
@@ -354,9 +719,9 @@ function updateVerdict(stats) {
 }
 
 
-/* =========================================================
-   GLOBAL LIVE STATUS
-   ========================================================= */
+// =========================================================
+// GLOBAL LIVE STATUS
+// =========================================================
 
 function updateGlobalStatus(stats) {
 
@@ -370,6 +735,7 @@ function updateGlobalStatus(stats) {
 
 
     if (!statusContainer) {
+
         return;
     }
 
@@ -404,23 +770,31 @@ function updateGlobalStatus(stats) {
         backends.length;
 
 
-    if (total === 0) {
+    if (
+        total === 0
+    ) {
 
         if (statusText) {
+
             statusText.textContent =
                 "OFFLINE";
         }
+
 
         return;
     }
 
 
-    if (healthy === total) {
+    if (
+        healthy === total
+    ) {
 
         if (statusText) {
+
             statusText.textContent =
                 "LIVE";
         }
+
 
         if (statusDot) {
 
@@ -429,21 +803,27 @@ function updateGlobalStatus(stats) {
                 "critical"
             );
 
+
             statusDot.classList.add(
                 "healthy"
             );
         }
 
+
         return;
     }
 
 
-    if (healthy > 0) {
+    if (
+        healthy > 0
+    ) {
 
         if (statusText) {
+
             statusText.textContent =
                 "DEGRADED";
         }
+
 
         if (statusDot) {
 
@@ -452,19 +832,23 @@ function updateGlobalStatus(stats) {
                 "critical"
             );
 
+
             statusDot.classList.add(
                 "warning"
             );
         }
+
 
         return;
     }
 
 
     if (statusText) {
+
         statusText.textContent =
             "OFFLINE";
     }
+
 
     if (statusDot) {
 
@@ -473,6 +857,7 @@ function updateGlobalStatus(stats) {
             "warning"
         );
 
+
         statusDot.classList.add(
             "critical"
         );
@@ -480,9 +865,9 @@ function updateGlobalStatus(stats) {
 }
 
 
-/* =========================================================
-   ROUTING ALGORITHM
-   ========================================================= */
+// =========================================================
+// ROUTING ALGORITHM
+// =========================================================
 
 function updateRoutingAlgorithm(stats) {
 
@@ -496,6 +881,7 @@ function updateRoutingAlgorithm(stats) {
             "routing-algorithm"
         );
 
+
     if (routingAlgorithm) {
 
         routingAlgorithm.textContent =
@@ -507,6 +893,7 @@ function updateRoutingAlgorithm(stats) {
         document.getElementById(
             "topology-algorithm"
         );
+
 
     if (topologyAlgorithm) {
 
@@ -520,6 +907,7 @@ function updateRoutingAlgorithm(stats) {
             "algorithm"
         );
 
+
     if (topAlgorithm) {
 
         topAlgorithm.textContent =
@@ -528,9 +916,9 @@ function updateRoutingAlgorithm(stats) {
 }
 
 
-/* =========================================================
-   TIMESTAMP
-   ========================================================= */
+// =========================================================
+// TIMESTAMP
+// =========================================================
 
 function updateTimestamp() {
 
@@ -541,6 +929,7 @@ function updateTimestamp() {
 
 
     if (!timestamp) {
+
         return;
     }
 
@@ -561,9 +950,9 @@ function updateTimestamp() {
 }
 
 
-/* =========================================================
-   TOPOLOGY NODE
-   ========================================================= */
+// =========================================================
+// TOPOLOGY NODE
+// =========================================================
 
 function updateTopologyNode(
     stats,
@@ -578,6 +967,7 @@ function updateTopologyNode(
 
 
     if (!backend) {
+
         return;
     }
 
@@ -589,6 +979,7 @@ function updateTopologyNode(
 
 
     if (!node) {
+
         return;
     }
 
@@ -710,9 +1101,9 @@ function updateTopologyNode(
 }
 
 
-/* =========================================================
-   TOPOLOGY
-   ========================================================= */
+// =========================================================
+// TOPOLOGY
+// =========================================================
 
 function updateTopology(stats) {
 
@@ -725,10 +1116,12 @@ function updateTopology(stats) {
         9001
     );
 
+
     updateTopologyNode(
         stats,
         9002
     );
+
 
     updateTopologyNode(
         stats,
@@ -789,14 +1182,15 @@ function updateTopology(stats) {
                         )
                     );
             }
+
         }
     );
 }
 
 
-/* =========================================================
-   LIVE TRAFFIC ANIMATION
-   ========================================================= */
+// =========================================================
+// LIVE TRAFFIC ANIMATION
+// =========================================================
 
 function updateTrafficAnimation(stats) {
 
@@ -813,6 +1207,7 @@ function updateTrafficAnimation(stats) {
     if (
         flowLines.length === 0
     ) {
+
         return;
     }
 
@@ -837,7 +1232,9 @@ function updateTrafficAnimation(stats) {
 
             const previousRequests =
                 Number(
-                    previousRequestCounts[port] || 0
+                    previousRequestCounts[
+                        port
+                    ] || 0
                 );
 
 
@@ -877,16 +1274,19 @@ function updateTrafficAnimation(stats) {
             }
 
 
-            previousRequestCounts[port] =
+            previousRequestCounts[
+                port
+            ] =
                 currentRequests;
+
         }
     );
 }
 
 
-/* =========================================================
-   PULSE BARS
-   ========================================================= */
+// =========================================================
+// PULSE BARS
+// =========================================================
 
 function createPulseBars(
     backend,
@@ -894,6 +1294,7 @@ function createPulseBars(
 ) {
 
     const heights = [
+
         7,
         11,
         15,
@@ -906,6 +1307,7 @@ function createPulseBars(
         7,
         12,
         15
+
     ];
 
 
@@ -941,7 +1343,8 @@ function createPulseBars(
             Number(
                 backend.errors || 0
             ) > 0 &&
-            i >= heights.length - 2
+            i >=
+                heights.length - 2
         ) {
 
             barColor =
@@ -950,6 +1353,7 @@ function createPulseBars(
 
 
         html += `
+
             <span
                 class="pulse-bar"
                 style="
@@ -964,6 +1368,7 @@ function createPulseBars(
                     opacity: 1;
                 "
             ></span>
+
         `;
     }
 
@@ -972,9 +1377,9 @@ function createPulseBars(
 }
 
 
-/* =========================================================
-   BACKEND TABLE ROW
-   ========================================================= */
+// =========================================================
+// BACKEND TABLE ROW
+// =========================================================
 
 function createBackendRow(
     backend,
@@ -1036,9 +1441,9 @@ function createBackendRow(
     }
 
 
-    /* =====================================================
+    /*
        BACKEND
-       ===================================================== */
+    */
 
     const backendCell =
         document.createElement(
@@ -1047,6 +1452,7 @@ function createBackendRow(
 
 
     backendCell.innerHTML = `
+
         <div class="backend-info">
 
             <strong>
@@ -1058,12 +1464,13 @@ function createBackendRow(
             </span>
 
         </div>
+
     `;
 
 
-    /* =====================================================
+    /*
        STATUS
-       ===================================================== */
+    */
 
     const statusCell =
         document.createElement(
@@ -1072,6 +1479,7 @@ function createBackendRow(
 
 
     statusCell.innerHTML = `
+
         <div class="table-status ${
             isUp
                 ? "up"
@@ -1089,12 +1497,13 @@ function createBackendRow(
             </span>
 
         </div>
+
     `;
 
 
-    /* =====================================================
+    /*
        PORT
-       ===================================================== */
+    */
 
     const portCell =
         document.createElement(
@@ -1103,15 +1512,17 @@ function createBackendRow(
 
 
     portCell.innerHTML = `
+
         <span class="mono">
             :${backendPort}
         </span>
+
     `;
 
 
-    /* =====================================================
+    /*
        REQUESTS
-       ===================================================== */
+    */
 
     const requestsCell =
         document.createElement(
@@ -1125,9 +1536,9 @@ function createBackendRow(
         );
 
 
-    /* =====================================================
+    /*
        ACTIVE
-       ===================================================== */
+    */
 
     const activeCell =
         document.createElement(
@@ -1141,9 +1552,9 @@ function createBackendRow(
         );
 
 
-    /* =====================================================
+    /*
        ERRORS
-       ===================================================== */
+    */
 
     const errorsCell =
         document.createElement(
@@ -1157,9 +1568,9 @@ function createBackendRow(
         );
 
 
-    /* =====================================================
+    /*
        AVERAGE RESPONSE
-       ===================================================== */
+    */
 
     const responseCell =
         document.createElement(
@@ -1173,9 +1584,9 @@ function createBackendRow(
         );
 
 
-    /* =====================================================
+    /*
        TRAFFIC
-       ===================================================== */
+    */
 
     const trafficCell =
         document.createElement(
@@ -1184,54 +1595,66 @@ function createBackendRow(
 
 
     trafficCell.innerHTML = `
+
         <div class="traffic-cell">
 
             <div class="traffic-value">
                 ${trafficShare.toFixed(1)}%
             </div>
 
+
             <div class="pulse-strip">
+
                 ${createPulseBars(
                     backend,
                     isUp
                 )}
+
             </div>
 
         </div>
+
     `;
 
 
-    /* =====================================================
+    /*
        ADD CELLS
-       ===================================================== */
+    */
 
     row.appendChild(
         backendCell
     );
 
+
     row.appendChild(
         statusCell
     );
+
 
     row.appendChild(
         portCell
     );
 
+
     row.appendChild(
         requestsCell
     );
+
 
     row.appendChild(
         activeCell
     );
 
+
     row.appendChild(
         errorsCell
     );
 
+
     row.appendChild(
         responseCell
     );
+
 
     row.appendChild(
         trafficCell
@@ -1242,9 +1665,9 @@ function createBackendRow(
 }
 
 
-/* =========================================================
-   BACKEND TABLE
-   ========================================================= */
+// =========================================================
+// BACKEND TABLE
+// =========================================================
 
 function updateBackendTable(stats) {
 
@@ -1280,6 +1703,7 @@ function updateBackendTable(stats) {
 
 
     if (!table) {
+
         return;
     }
 
@@ -1310,14 +1734,15 @@ function updateBackendTable(stats) {
                     totalRequests
                 )
             );
+
         }
     );
 }
 
 
-/* =========================================================
-   FOOTER
-   ========================================================= */
+// =========================================================
+// FOOTER
+// =========================================================
 
 function updateFooter(stats) {
 
@@ -1328,6 +1753,7 @@ function updateFooter(stats) {
 
 
     if (!footerStatus) {
+
         return;
     }
 
@@ -1337,19 +1763,31 @@ function updateFooter(stats) {
 }
 
 
-/* =========================================================
-   UPDATE COMPLETE DASHBOARD
-   ========================================================= */
+// =========================================================
+// UPDATE COMPLETE DASHBOARD
+// =========================================================
 
 function updateDashboard(stats) {
 
     lastStats =
         stats;
 
+
+    /*
+       Detect events before updating
+       the rest of the dashboard.
+    */
+
+    detectEvents(
+        stats
+    );
+
+
     updateCharts(
         stats.backends
     );
-    
+
+
     updateKPIs(
         stats
     );
@@ -1394,9 +1832,9 @@ function updateDashboard(stats) {
 }
 
 
-/* =========================================================
-   CONNECTION ERROR
-   ========================================================= */
+// =========================================================
+// CONNECTION ERROR
+// =========================================================
 
 function showConnectionError() {
 
@@ -1438,6 +1876,7 @@ function showConnectionError() {
             "healthy",
             "warning"
         );
+
 
         verdict.classList.add(
             "critical"
@@ -1484,9 +1923,9 @@ function showConnectionError() {
 }
 
 
-/* =========================================================
-   FETCH STATISTICS
-   ========================================================= */
+// =========================================================
+// FETCH STATISTICS
+// =========================================================
 
 async function fetchStats() {
 
@@ -1531,9 +1970,9 @@ async function fetchStats() {
 }
 
 
-/* =========================================================
-   MONITORING LOOP
-   ========================================================= */
+// =========================================================
+// MONITORING LOOP
+// =========================================================
 
 function startMonitoring() {
 
@@ -1545,315 +1984,649 @@ function startMonitoring() {
         2000
     );
 }
-// =====================================================
+
+
+// =========================================================
 // CHART INITIALIZATION
-// =====================================================
+// =========================================================
 
 function initializeCharts() {
 
-    const trafficCanvas = document.getElementById("trafficChart");
-    const latencyCanvas = document.getElementById("latencyChart");
+    const trafficCanvas =
+        document.getElementById(
+            "trafficChart"
+        );
 
-    if (!trafficCanvas || !latencyCanvas) {
-        console.warn("Chart canvas elements not found.");
+
+    const latencyCanvas =
+        document.getElementById(
+            "latencyChart"
+        );
+
+
+    if (
+        !trafficCanvas ||
+        !latencyCanvas
+    ) {
+
+        console.warn(
+            "Chart canvas elements not found."
+        );
+
+
         return;
     }
 
-    // -----------------------------------------------
-    // Traffic Chart
-    // -----------------------------------------------
 
-    trafficChart = new Chart(trafficCanvas, {
-        type: "line",
+    /*
+       -----------------------------------------------
+       Traffic Chart
+       -----------------------------------------------
+    */
 
-        data: {
-            labels: [],
+    trafficChart =
+        new Chart(
+            trafficCanvas,
+            {
 
-            datasets: [
-                {
-                    label: "Backend 9001",
-                    data: [],
-                    borderColor: "#6C7CFF",
-                    backgroundColor: "rgba(108, 124, 255, 0.08)",
-                    borderWidth: 2,
-                    tension: 0.35,
-                    fill: false,
-                    pointRadius: 2,
-                    pointHoverRadius: 4
+                type: "line",
+
+
+                data: {
+
+                    labels: [],
+
+
+                    datasets: [
+
+                        {
+                            label:
+                                "Backend 9001",
+
+                            data: [],
+
+                            borderColor:
+                                "#6C7CFF",
+
+                            backgroundColor:
+                                "rgba(108, 124, 255, 0.08)",
+
+                            borderWidth: 2,
+
+                            tension: 0.35,
+
+                            fill: false,
+
+                            pointRadius: 2,
+
+                            pointHoverRadius: 4
+                        },
+
+
+                        {
+                            label:
+                                "Backend 9002",
+
+                            data: [],
+
+                            borderColor:
+                                "#4CC9E0",
+
+                            backgroundColor:
+                                "rgba(76, 201, 224, 0.08)",
+
+                            borderWidth: 2,
+
+                            tension: 0.35,
+
+                            fill: false,
+
+                            pointRadius: 2,
+
+                            pointHoverRadius: 4
+                        },
+
+
+                        {
+                            label:
+                                "Backend 9003",
+
+                            data: [],
+
+                            borderColor:
+                                "#B58CFF",
+
+                            backgroundColor:
+                                "rgba(181, 140, 255, 0.08)",
+
+                            borderWidth: 2,
+
+                            tension: 0.35,
+
+                            fill: false,
+
+                            pointRadius: 2,
+
+                            pointHoverRadius: 4
+                        }
+
+                    ]
                 },
 
-                {
-                    label: "Backend 9002",
-                    data: [],
-                    borderColor: "#4CC9E0",
-                    backgroundColor: "rgba(76, 201, 224, 0.08)",
-                    borderWidth: 2,
-                    tension: 0.35,
-                    fill: false,
-                    pointRadius: 2,
-                    pointHoverRadius: 4
-                },
 
-                {
-                    label: "Backend 9003",
-                    data: [],
-                    borderColor: "#B58CFF",
-                    backgroundColor: "rgba(181, 140, 255, 0.08)",
-                    borderWidth: 2,
-                    tension: 0.35,
-                    fill: false,
-                    pointRadius: 2,
-                    pointHoverRadius: 4
-                }
-            ]
-        },
+                options: {
 
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
+                    responsive: true,
 
-            animation: false,
+                    maintainAspectRatio: false,
 
-            interaction: {
-                intersect: false,
-                mode: "index"
-            },
+                    animation: false,
 
-            plugins: {
-                legend: {
-                    position: "bottom",
 
-                    labels: {
-                        color: "#9AA6BC",
-                        usePointStyle: true,
-                        pointStyle: "circle",
-                        padding: 20
-                    }
-                }
-            },
+                    interaction: {
 
-            scales: {
+                        intersect: false,
 
-                x: {
-                    ticks: {
-                        color: "#66738C",
-                        maxTicksLimit: 8
+                        mode: "index"
                     },
 
-                    grid: {
-                        color: "rgba(35, 44, 61, 0.6)"
-                    }
-                },
 
-                y: {
-                    beginAtZero: true,
+                    plugins: {
 
-                    ticks: {
-                        color: "#66738C"
+                        legend: {
+
+                            position: "bottom",
+
+
+                            labels: {
+
+                                color:
+                                    "#9AA6BC",
+
+                                usePointStyle:
+                                    true,
+
+                                pointStyle:
+                                    "circle",
+
+                                padding: 20
+                            }
+                        }
                     },
 
-                    grid: {
-                        color: "rgba(35, 44, 61, 0.6)"
+
+                    scales: {
+
+                        x: {
+
+                            ticks: {
+
+                                color:
+                                    "#66738C",
+
+                                maxTicksLimit: 8
+                            },
+
+
+                            grid: {
+
+                                color:
+                                    "rgba(35, 44, 61, 0.6)"
+                            }
+                        },
+
+
+                        y: {
+
+                            beginAtZero:
+                                true,
+
+
+                            ticks: {
+
+                                color:
+                                    "#66738C"
+                            },
+
+
+                            grid: {
+
+                                color:
+                                    "rgba(35, 44, 61, 0.6)"
+                            }
+                        }
                     }
                 }
             }
-        }
-    });
+        );
 
 
-    // -----------------------------------------------
-    // Latency Chart
-    // -----------------------------------------------
+    /*
+       -----------------------------------------------
+       Latency Chart
+       -----------------------------------------------
+    */
 
-    latencyChart = new Chart(latencyCanvas, {
-        type: "line",
+    latencyChart =
+        new Chart(
+            latencyCanvas,
+            {
 
-        data: {
-            labels: [],
+                type: "line",
 
-            datasets: [
-                {
-                    label: "Backend 9001",
-                    data: [],
-                    borderColor: "#6C7CFF",
-                    borderWidth: 2,
-                    tension: 0.35,
-                    fill: false,
-                    pointRadius: 2,
-                    pointHoverRadius: 4
+
+                data: {
+
+                    labels: [],
+
+
+                    datasets: [
+
+                        {
+                            label:
+                                "Backend 9001",
+
+                            data: [],
+
+                            borderColor:
+                                "#6C7CFF",
+
+                            borderWidth: 2,
+
+                            tension: 0.35,
+
+                            fill: false,
+
+                            pointRadius: 2,
+
+                            pointHoverRadius: 4
+                        },
+
+
+                        {
+                            label:
+                                "Backend 9002",
+
+                            data: [],
+
+                            borderColor:
+                                "#4CC9E0",
+
+                            borderWidth: 2,
+
+                            tension: 0.35,
+
+                            fill: false,
+
+                            pointRadius: 2,
+
+                            pointHoverRadius: 4
+                        },
+
+
+                        {
+                            label:
+                                "Backend 9003",
+
+                            data: [],
+
+                            borderColor:
+                                "#B58CFF",
+
+                            borderWidth: 2,
+
+                            tension: 0.35,
+
+                            fill: false,
+
+                            pointRadius: 2,
+
+                            pointHoverRadius: 4
+                        }
+
+                    ]
                 },
 
-                {
-                    label: "Backend 9002",
-                    data: [],
-                    borderColor: "#4CC9E0",
-                    borderWidth: 2,
-                    tension: 0.35,
-                    fill: false,
-                    pointRadius: 2,
-                    pointHoverRadius: 4
-                },
 
-                {
-                    label: "Backend 9003",
-                    data: [],
-                    borderColor: "#B58CFF",
-                    borderWidth: 2,
-                    tension: 0.35,
-                    fill: false,
-                    pointRadius: 2,
-                    pointHoverRadius: 4
-                }
-            ]
-        },
+                options: {
 
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
+                    responsive: true,
 
-            animation: false,
+                    maintainAspectRatio: false,
 
-            interaction: {
-                intersect: false,
-                mode: "index"
-            },
+                    animation: false,
 
-            plugins: {
-                legend: {
-                    position: "bottom",
 
-                    labels: {
-                        color: "#9AA6BC",
-                        usePointStyle: true,
-                        pointStyle: "circle",
-                        padding: 20
-                    }
-                }
-            },
+                    interaction: {
 
-            scales: {
+                        intersect: false,
 
-                x: {
-                    ticks: {
-                        color: "#66738C",
-                        maxTicksLimit: 8
+                        mode: "index"
                     },
 
-                    grid: {
-                        color: "rgba(35, 44, 61, 0.6)"
-                    }
-                },
 
-                y: {
-                    beginAtZero: true,
+                    plugins: {
 
-                    ticks: {
-                        color: "#66738C"
+                        legend: {
+
+                            position: "bottom",
+
+
+                            labels: {
+
+                                color:
+                                    "#9AA6BC",
+
+                                usePointStyle:
+                                    true,
+
+                                pointStyle:
+                                    "circle",
+
+                                padding: 20
+                            }
+                        }
                     },
 
-                    grid: {
-                        color: "rgba(35, 44, 61, 0.6)"
+
+                    scales: {
+
+                        x: {
+
+                            ticks: {
+
+                                color:
+                                    "#66738C",
+
+                                maxTicksLimit: 8
+                            },
+
+
+                            grid: {
+
+                                color:
+                                    "rgba(35, 44, 61, 0.6)"
+                            }
+                        },
+
+
+                        y: {
+
+                            beginAtZero:
+                                true,
+
+
+                            ticks: {
+
+                                color:
+                                    "#66738C"
+                            },
+
+
+                            grid: {
+
+                                color:
+                                    "rgba(35, 44, 61, 0.6)"
+                            }
+                        }
                     }
                 }
             }
-        }
-    });
+        );
 }
 
 
-// =====================================================
+// =========================================================
 // UPDATE CHART DATA
-// =====================================================
+// =========================================================
 
 function updateCharts(backends) {
 
-    if (!trafficChart || !latencyChart) {
+    if (
+        !trafficChart ||
+        !latencyChart
+    ) {
+
         return;
     }
 
-    const now = new Date();
 
-    const timeLabel = now.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit"
-    });
+    const now =
+        new Date();
 
-    chartHistory.labels.push(timeLabel);
 
-    backends.forEach(backend => {
+    const currentTime =
+        now.getTime();
 
-        const port = backend.port;
 
-        if (!chartHistory.traffic[port]) {
-            chartHistory.traffic[port] = [];
-        }
-
-        if (!chartHistory.latency[port]) {
-            chartHistory.latency[port] = [];
-        }
-
-        chartHistory.traffic[port].push(
-            Number(backend.total_requests || 0)
+    const timeLabel =
+        now.toLocaleTimeString(
+            [],
+            {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit"
+            }
         );
 
-        chartHistory.latency[port].push(
-            Number(backend.avg_response_time || 0)
-        );
 
-    });
+    let elapsedSeconds = 2;
 
 
-    // Keep only the latest 20 points
+    if (
+        previousChartTime !== null
+    ) {
 
-    if (chartHistory.labels.length > MAX_CHART_POINTS) {
+        elapsedSeconds =
+            (
+                currentTime -
+                previousChartTime
+            ) / 1000;
 
-        chartHistory.labels.shift();
 
-        [9001, 9002, 9003].forEach(port => {
+        if (
+            elapsedSeconds <= 0
+        ) {
 
-            chartHistory.traffic[port].shift();
-            chartHistory.latency[port].shift();
-
-        });
+            elapsedSeconds = 2;
+        }
     }
 
 
-    // Update traffic chart
-
-    trafficChart.data.labels = chartHistory.labels;
-
-    trafficChart.data.datasets[0].data =
-        chartHistory.traffic[9001];
-
-    trafficChart.data.datasets[1].data =
-        chartHistory.traffic[9002];
-
-    trafficChart.data.datasets[2].data =
-        chartHistory.traffic[9003];
+    previousChartTime =
+        currentTime;
 
 
-    // Update latency chart
-
-    latencyChart.data.labels = chartHistory.labels;
-
-    latencyChart.data.datasets[0].data =
-        chartHistory.latency[9001];
-
-    latencyChart.data.datasets[1].data =
-        chartHistory.latency[9002];
-
-    latencyChart.data.datasets[2].data =
-        chartHistory.latency[9003];
+    chartHistory.labels.push(
+        timeLabel
+    );
 
 
-    trafficChart.update("none");
-    latencyChart.update("none");
+    backends.forEach(
+        backend => {
+
+            const port =
+                backend.port;
+
+
+            if (
+                !chartHistory.traffic[
+                    port
+                ]
+            ) {
+
+                chartHistory.traffic[
+                    port
+                ] = [];
+            }
+
+
+            if (
+                !chartHistory.latency[
+                    port
+                ]
+            ) {
+
+                chartHistory.latency[
+                    port
+                ] = [];
+            }
+
+
+            const currentRequests =
+                Number(
+                    backend.total_requests || 0
+                );
+
+
+            const previousRequests =
+                Number(
+                    previousChartRequests[
+                        port
+                    ] || 0
+                );
+
+
+            const requestDifference =
+                Math.max(
+                    0,
+                    currentRequests -
+                    previousRequests
+                );
+
+
+            const requestsPerSecond =
+                requestDifference /
+                elapsedSeconds;
+
+
+            chartHistory.traffic[
+                port
+            ].push(
+                Number(
+                    requestsPerSecond.toFixed(2)
+                )
+            );
+
+
+            chartHistory.latency[
+                port
+            ].push(
+                Number(
+                    backend.avg_response_time ||
+                    0
+                )
+            );
+
+
+            previousChartRequests[
+                port
+            ] =
+                currentRequests;
+
+        }
+    );
+
+
+    if (
+        chartHistory.labels.length >
+        MAX_CHART_POINTS
+    ) {
+
+        chartHistory.labels.shift();
+
+
+        [
+            9001,
+            9002,
+            9003
+        ].forEach(
+            port => {
+
+                chartHistory.traffic[
+                    port
+                ].shift();
+
+
+                chartHistory.latency[
+                    port
+                ].shift();
+
+            }
+        );
+    }
+
+
+    trafficChart.data.labels =
+        chartHistory.labels;
+
+
+    trafficChart.data.datasets[
+        0
+    ].data =
+        chartHistory.traffic[
+            9001
+        ];
+
+
+    trafficChart.data.datasets[
+        1
+    ].data =
+        chartHistory.traffic[
+            9002
+        ];
+
+
+    trafficChart.data.datasets[
+        2
+    ].data =
+        chartHistory.traffic[
+            9003
+        ];
+
+
+    latencyChart.data.labels =
+        chartHistory.labels;
+
+
+    latencyChart.data.datasets[
+        0
+    ].data =
+        chartHistory.latency[
+            9001
+        ];
+
+
+    latencyChart.data.datasets[
+        1
+    ].data =
+        chartHistory.latency[
+            9002
+        ];
+
+
+    latencyChart.data.datasets[
+        2
+    ].data =
+        chartHistory.latency[
+            9003
+        ];
+
+
+    trafficChart.update(
+        "none"
+    );
+
+
+    latencyChart.update(
+        "none"
+    );
 }
 
-/* =========================================================
-   PAGE INITIALIZATION
-   ========================================================= */
+
+// =========================================================
+// PAGE INITIALIZATION
+// =========================================================
 
 document.addEventListener(
     "DOMContentLoaded",
@@ -1869,9 +2642,18 @@ document.addEventListener(
         );
 
 
+        /*
+           Initialize Chart.js first.
+        */
+
         initializeCharts();
 
 
+        /*
+           Start load balancer monitoring.
+        */
+
         startMonitoring();
+
     }
 );
