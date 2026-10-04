@@ -48,7 +48,7 @@ if __name__ == "__main__":
     print(f"Starting {SERVER_NAME} on port {PORT}")
 
     app.run(
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=PORT,
         threaded=True
     )

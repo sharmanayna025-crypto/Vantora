@@ -21,3 +21,12 @@ services:
     ports:
       - "9003:9003"
 
+  load-balancer:
+    build: ./lb
+    container_name: vantora-load-balancer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend-9001
+      - backend-9002
+      - backend-9003

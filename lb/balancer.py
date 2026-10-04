@@ -16,7 +16,7 @@ from algorithms import (
 # Configuration
 # ==================================================
 
-LB_HOST = "127.0.0.1"
+LB_HOST = "0.0.0.0"
 LB_PORT = 8080
 
 
@@ -36,9 +36,9 @@ def log_circuit_change(name, old_state, new_state):
 # ==================================================
 
 backends = [
-    Backend("127.0.0.1", 9001, weight=3),
-    Backend("127.0.0.1", 9002, weight=2),
-    Backend("127.0.0.1", 9003, weight=1)
+    Backend("backend-9001", 9001, weight=3),
+    Backend("backend-9002", 9002, weight=2),
+    Backend("backend-9003", 9003, weight=1)
 ]
 
 
@@ -716,9 +716,9 @@ print(
 
 print("Backends:")
 
-print("  - 127.0.0.1:9001")
-print("  - 127.0.0.1:9002")
-print("  - 127.0.0.1:9003")
+print("  - backend-9001:9001")
+print("  - backend-9002:9002")
+print("  - backend-9003:9003")
 
 print("====================================")
 
