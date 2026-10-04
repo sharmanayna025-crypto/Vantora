@@ -1,0 +1,23 @@
+services:
+
+  backend-9001:
+    build: ./backend
+    container_name: vantora-backend-9001
+    command: python app.py 9001
+    ports:
+      - "9001:9001"
+
+  backend-9002:
+    build: ./backend
+    container_name: vantora-backend-9002
+    command: python app.py 9002
+    ports:
+      - "9002:9002"
+
+  backend-9003:
+    build: ./backend
+    container_name: vantora-backend-9003
+    command: python app.py 9003
+    ports:
+      - "9003:9003"
+
