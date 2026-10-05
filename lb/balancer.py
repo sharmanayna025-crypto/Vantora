@@ -1,8 +1,10 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
 import http.client
 import threading
 import time
 import json
+import os
 
 from algorithms import (
     Backend,
@@ -35,10 +37,39 @@ def log_circuit_change(name, old_state, new_state):
 # Backend Servers
 # ==================================================
 
+# Local mode:
+#   127.0.0.1,127.0.0.1,127.0.0.1
+#
+# Docker mode:
+#   backend-9001,backend-9002,backend-9003
+#
+# Docker Compose provides the Docker hostnames
+# through the VANTORA_BACKEND_HOSTS environment variable.
+
+backend_hosts = os.getenv(
+    "VANTORA_BACKEND_HOSTS",
+    "127.0.0.1,127.0.0.1,127.0.0.1"
+).split(",")
+
+
 backends = [
-    Backend("backend-9001", 9001, weight=3),
-    Backend("backend-9002", 9002, weight=2),
-    Backend("backend-9003", 9003, weight=1)
+    Backend(
+        backend_hosts[0].strip(),
+        9001,
+        weight=3
+    ),
+
+    Backend(
+        backend_hosts[1].strip(),
+        9002,
+        weight=2
+    ),
+
+    Backend(
+        backend_hosts[2].strip(),
+        9003,
+        weight=1
+    )
 ]
 
 
@@ -58,6 +89,7 @@ algorithms = {
 # ==================================================
 
 algorithm_name = "Least Connections"
+
 algorithm = algorithms[algorithm_name]
 
 algorithm_lock = threading.Lock()
@@ -245,7 +277,9 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
 
                 stats.append({
                     "server": f"Backend-{backend.port}",
+
                     "host": backend.host,
+
                     "port": backend.port,
 
                     "healthy": backend.healthy,
@@ -371,23 +405,30 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
 
             breaker_recorded = False
 
+            connection = None
+
             start_time = time.time()
+
+            backend.active_conns += 1
 
 
             try:
 
-                # Increase active connections
-                backend.active_conns += 1
-
+                # --------------------------------------------------
+                # Connect To Backend
+                # --------------------------------------------------
 
                 connection = http.client.HTTPConnection(
                     backend.host,
                     backend.port,
-                    timeout=10
+                    timeout=3
                 )
 
 
-                # Forward request
+                # --------------------------------------------------
+                # Forward Request
+                # --------------------------------------------------
+
                 connection.request(
                     "GET",
                     self.path
@@ -404,7 +445,7 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
                 # --------------------------------------------------
 
                 if response.status >= 500:
-
+                    backend.errors += 1
                     backend.breaker.record_failure()
 
                 else:
@@ -430,14 +471,8 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
                 )
 
 
-                backend.active_conns = max(
-                    0,
-                    backend.active_conns - 1
-                )
-
-
                 # --------------------------------------------------
-                # Send Response To Client
+                # Prepare Response Headers
                 # --------------------------------------------------
 
                 self.send_response(
@@ -447,6 +482,7 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
 
                 for header, value in response.getheaders():
 
+                    # Do not forward hop-by-hop connection header.
                     if header.lower() != "connection":
 
                         self.send_header(
@@ -470,12 +506,38 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
                 self.end_headers()
 
 
-                self.wfile.write(
-                    response_body
-                )
+                # --------------------------------------------------
+                # Send Response To Client
+                # --------------------------------------------------
+                #
+                # IMPORTANT:
+                #
+                # At this point the backend request has already
+                # succeeded and an HTTP response has been started
+                # for the client.
+                #
+                # If writing to the client fails, we MUST NOT retry
+                # another backend because another HTTP response
+                # cannot safely be sent on the same client socket.
+                #
 
+                try:
 
-                connection.close()
+                    self.wfile.write(
+                        response_body
+                    )
+
+                except Exception as client_error:
+
+                    print(
+                        f"Client response write failed "
+                        f"after Backend-{backend.port} "
+                        f"successfully responded: "
+                        f"{client_error}"
+                    )
+
+                    return
+
 
                 return
 
@@ -483,18 +545,18 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
             except Exception as error:
 
                 # --------------------------------------------------
-                # Circuit Breaker Failure
+                # Backend Request Failure
                 # --------------------------------------------------
+                #
+                # This exception happened before a successful
+                # response was sent to the client.
+                #
+                # Therefore failover is safe.
+                #
 
                 if not breaker_recorded:
 
                     backend.breaker.record_failure()
-
-
-                backend.active_conns = max(
-                    0,
-                    backend.active_conns - 1
-                )
 
 
                 backend.errors += 1
@@ -513,17 +575,30 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
                 )
 
 
-                try:
-
-                    connection.close()
-
-                except Exception:
-
-                    pass
-
-
-                # Continue to another backend
                 continue
+
+
+            finally:
+
+                # --------------------------------------------------
+                # Cleanup
+                # --------------------------------------------------
+
+                backend.active_conns = max(
+                    0,
+                    backend.active_conns - 1
+                )
+
+
+                if connection is not None:
+
+                    try:
+
+                        connection.close()
+
+                    except Exception:
+
+                        pass
 
 
         # --------------------------------------------------
@@ -585,8 +660,10 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
                     self.send_json(
                         {
                             "success": False,
+
                             "message":
                                 "Invalid algorithm",
+
                             "available_algorithms":
                                 list(algorithms.keys())
                         },
@@ -624,8 +701,10 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
                 self.send_json(
                     {
                         "success": True,
+
                         "algorithm":
                             algorithm_name,
+
                         "message":
                             f"Routing algorithm changed "
                             f"to {algorithm_name}"
@@ -646,6 +725,7 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
                 self.send_json(
                     {
                         "success": False,
+
                         "message":
                             "Invalid request"
                     },
@@ -667,76 +747,41 @@ class LoadBalancerHandler(BaseHTTPRequestHandler):
             status=404
         )
 
-
-# ==================================================
-# Create Load Balancer Server
-# ==================================================
-
-server = ThreadingHTTPServer(
-    (LB_HOST, LB_PORT),
-    LoadBalancerHandler
-)
-
-
-# ==================================================
-# Start Health Monitor
-# ==================================================
-
-health_thread = threading.Thread(
-    target=health_check,
-    daemon=True
-)
-
-health_thread.start()
-
-
-# ==================================================
-# Startup Information
-# ==================================================
-
-print("Health Monitor: ACTIVE")
-
-print("====================================")
-print("       Dynamic Load Balancer")
-print("====================================")
-
-print(
-    f"Listening on "
-    f"{LB_HOST}:{LB_PORT}"
-)
-
-print(
-    f"Algorithm: {algorithm_name}"
-)
-
-print(
-    "Circuit breaker: ACTIVE "
-    "(3 failures -> OPEN, 10s cooldown)"
-)
-
-print("Backends:")
-
-print("  - backend-9001:9001")
-print("  - backend-9002:9002")
-print("  - backend-9003:9003")
-
-print("====================================")
-
-
-# ==================================================
-# Run Server
-# ==================================================
-
-try:
-
-    server.serve_forever()
-
-except KeyboardInterrupt:
-
-    print(
-        "\nStopping Load Balancer..."
+if __name__ == "__main__":
+    server = ThreadingHTTPServer(
+        (LB_HOST, LB_PORT),
+        LoadBalancerHandler
     )
 
-finally:
+    health_thread = threading.Thread(
+        target=health_check,
+        daemon=True
+    )
+    health_thread.start()
 
-    server.server_close()
+    print("Health Monitor: ACTIVE")
+    print("====================================")
+    print("     Dynamic Load Balancer")
+    print("====================================")
+    print(f"Listening on {LB_HOST}:{LB_PORT}")
+    print(f"Algorithm: {algorithm_name}")
+    print(
+        "Circuit breaker: ACTIVE "
+        "(3 failures -> OPEN, 10s cooldown)"
+    )
+    print("Backends:")
+
+    for backend in backends:
+        print(
+            f"  - Backend-{backend.port}: "
+            f"{backend.host}:{backend.port}"
+        )
+
+    print("====================================")
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopping Load Balancer...")
+    finally:
+        server.server_close()

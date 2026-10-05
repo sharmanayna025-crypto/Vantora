@@ -6,6 +6,18 @@ services:
     command: python app.py 9001
     ports:
       - "9001:9001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9001/health', timeout=2)"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
   backend-9002:
     build: ./backend
@@ -13,6 +25,18 @@ services:
     command: python app.py 9002
     ports:
       - "9002:9002"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9002/health', timeout=2)"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
   backend-9003:
     build: ./backend
@@ -20,13 +44,44 @@ services:
     command: python app.py 9003
     ports:
       - "9003:9003"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9003/health', timeout=2)"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
   load-balancer:
     build: ./lb
     container_name: vantora-load-balancer
     ports:
       - "8080:8080"
+    environment:
+      VANTORA_BACKEND_HOSTS: "backend-9001,backend-9002,backend-9003"
+      PYTHONUNBUFFERED: "1"
     depends_on:
-      - backend-9001
-      - backend-9002
-      - backend-9003
+      backend-9001:
+        condition: service_healthy
+      backend-9002:
+        condition: service_healthy
+      backend-9003:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/stats', timeout=2)"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
