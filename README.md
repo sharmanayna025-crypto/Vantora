@@ -623,23 +623,3 @@ docker compose logs
 ```
 
 Resolve the reported issue before running load tests or collecting new packet captures.
-
-## Project Team and Academic Details
-
-**Project:** Vantora — Dynamic Load Balancer
-
-**Institution:** MIT World Peace University (MIT-WPU)
-
-**Course:** Computer Networks Laboratory (CSE20110)
-
-**Academic Year:** 2026–2027
-
-**Project Team:** 
-
-
-| Sr. No. | Team Member Name | PRN Number |
-|---:|---|---|
-| 1 | Nayna Sharma | 1262241524 |
-| 2 | Harshad Pardhi | 1262241534 |
-| 3 | Aaryan Kumbhare | 1262241729 |
-| 4 | Anurag Harapanahalli | 1262241775 |
